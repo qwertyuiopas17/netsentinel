@@ -11,7 +11,7 @@ The model expects two inputs:
 import numpy as np
 import onnxruntime as ort
 
-from antithesis.config import (
+from netsentinel.config import (
     C2_MODEL_PATH,
     C2_SEQ_MEAN_PATH, C2_SEQ_SCALE_PATH,
     C2_FFT_MEAN_PATH, C2_FFT_SCALE_PATH,
@@ -117,7 +117,12 @@ class C2BeaconDetector:
         
         # Compute FFT features from IATs
         iats = seq[:, 0]
+        non_zero_iats = iats[iats > 0]
         fft_feats = self._compute_fft_features(iats)
+        
+        # Compute CV for low-jitter beacon detection
+        # CRITICAL: Separate from FFT features to avoid polluting model input
+        cv = float(np.std(non_zero_iats) / (np.mean(non_zero_iats) + 1e-9)) if len(non_zero_iats) > 0 else 1.0
         
         # Scale
         seq_scaled = (seq - self.seq_mean) / self.seq_scale
@@ -141,8 +146,20 @@ class C2BeaconDetector:
         probs = exp_logits / exp_logits.sum()
         prob = float(probs[1])  # Index 1 = beacon probability
         
+        # Extract FFT features for gate evaluation
+        fft_score = float(fft_feats[0])
+        spectral_entropy = float(fft_feats[3])
+        peak_prominence = float(fft_feats[4])
+        
+        # Periodicity gate with CV check for low-jitter beacons
+        # KNOWN ISSUE: This will false-positive on benign periodic traffic (NTP, keepalives)
+        # TODO: Retrain model with benign periodic negatives
+        low_jitter_beacon = prob > 0.90 and cv < 0.05
+        fft_based_beacon = (prob > 0.90 and fft_score > 0.15 and 
+                           spectral_entropy < 0.85 and peak_prominence > 3.0)
+        is_beacon = low_jitter_beacon or fft_based_beacon
+        
         # Compute estimated beacon interval from FFT
-        non_zero_iats = iats[iats > 0]
         if len(non_zero_iats) > 4:
             fft_vals = np.fft.rfft(non_zero_iats - np.mean(non_zero_iats))
             magnitudes = np.abs(fft_vals[1:])
@@ -155,12 +172,11 @@ class C2BeaconDetector:
         else:
             beacon_interval = 0.0
         
-        # Threshold tuning: require 95% confidence for beacon detection
-        # Reduces false positives on random/bursty traffic while maintaining high TPR
         return {
-            "threat": "C2 Beacon" if prob > 0.95 else "Benign",
+            "threat": "C2 Beacon" if is_beacon else "Benign",
             "confidence": prob,
-            "is_beacon": prob > 0.95,
+            "is_beacon": is_beacon,
             "periodicity_seconds": float(beacon_interval),
             "model": "c2_beacon_bilstm",
+            "cv": cv,  # Expose for debugging
         }
