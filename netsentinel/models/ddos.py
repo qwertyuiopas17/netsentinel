@@ -51,6 +51,18 @@ class DDoSDetector:
             dtype=np.float32
         ).reshape(1, -1)
         
+        # Guard against degenerate/empty flows. An all-zero vector is not a
+        # real flow — it was the source of the earlier "benign false positive"
+        # in testing. Reject it before it reaches the model.
+        if not np.any(feature_vec):
+            return {
+                "threat": "Benign",
+                "confidence": 0.0,
+                "is_attack": False,
+                "subtype": "Benign",
+                "model": "ddos_binary_xgboost",
+            }
+        
         # Run inference
         results = self.session.run(None, {self.input_name: feature_vec})
         
@@ -75,9 +87,11 @@ class DDoSDetector:
         else:
             ddos_confidence = 0.5
         
-        # Threshold tuning: require 98% confidence to reduce false positives
-        # Standard ML practice for production deployment to balance TPR/FPR
-        is_attack = predicted_label == 0 and ddos_confidence > 0.98
+        # Threshold tuning: fire on the model's own decision with a modest
+        # 0.85 confidence floor. This trims low-confidence out-of-distribution
+        # drift while preserving genuine detections (e.g. the ~0.90 SYN flood
+        # that a 0.98 gate previously suppressed).
+        is_attack = predicted_label == 0 and ddos_confidence > 0.85
         
         return {
             "threat": "DDoS" if is_attack else "Benign",

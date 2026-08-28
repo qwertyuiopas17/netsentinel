@@ -155,12 +155,33 @@ class C2BeaconDetector:
         else:
             beacon_interval = 0.0
         
-        # Threshold tuning: require 95% confidence for beacon detection
-        # Reduces false positives on random/bursty traffic while maintaining high TPR
+        # Periodicity-based gating. The softmax prob saturates (~1.00) even on
+        # random/bursty traffic, so confidence alone cannot separate a beacon
+        # from noise — the earlier `prob > 0.95` gate never suppressed those
+        # false positives because they were already above 0.95.
+        #
+        # A genuine beacon has a STABLE DOMINANT PERIOD: its spectrum is
+        # concentrated (high fft_score), low-entropy (spectral_entropy near 0),
+        # and its peak stands out (high peak_prominence). Random traffic has a
+        # diffuse spectrum (low concentration, high entropy). Require both the
+        # model's confidence AND real periodicity so noise is rejected.
+        #
+        # Thresholds are starting points — tune against captured beacons.
+        fft_score = float(fft_feats[0])         # peak concentration
+        spectral_entropy = float(fft_feats[3])  # low = periodic, high = random
+        peak_prominence = float(fft_feats[4])   # how much the peak stands out
+        
+        is_beacon = (
+            prob > 0.90
+            and fft_score > 0.15
+            and spectral_entropy < 0.85
+            and peak_prominence > 3.0
+        )
+        
         return {
-            "threat": "C2 Beacon" if prob > 0.95 else "Benign",
+            "threat": "C2 Beacon" if is_beacon else "Benign",
             "confidence": prob,
-            "is_beacon": prob > 0.95,
+            "is_beacon": is_beacon,
             "periodicity_seconds": float(beacon_interval),
             "model": "c2_beacon_bilstm",
         }
