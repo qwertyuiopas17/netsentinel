@@ -155,10 +155,12 @@ class C2BeaconDetector:
         else:
             beacon_interval = 0.0
         
+        # Threshold tuning: require 95% confidence for beacon detection
+        # Reduces false positives on random/bursty traffic while maintaining high TPR
         return {
-            "threat": "C2 Beacon" if prob > 0.5 else "Benign",
+            "threat": "C2 Beacon" if prob > 0.95 else "Benign",
             "confidence": prob,
-            "is_beacon": prob > 0.5,
+            "is_beacon": prob > 0.95,
             "periodicity_seconds": float(beacon_interval),
             "model": "c2_beacon_bilstm",
         }

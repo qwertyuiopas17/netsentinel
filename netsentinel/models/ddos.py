@@ -75,7 +75,9 @@ class DDoSDetector:
         else:
             ddos_confidence = 0.5
         
-        is_attack = predicted_label == 0  # 0 = DDoS attack
+        # Threshold tuning: require 98% confidence to reduce false positives
+        # Standard ML practice for production deployment to balance TPR/FPR
+        is_attack = predicted_label == 0 and ddos_confidence > 0.98
         
         return {
             "threat": "DDoS" if is_attack else "Benign",
