@@ -13,14 +13,14 @@ import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from antithesis.models.registry import ModelRegistry
-from antithesis.pipeline.analyzer import FlowAnalyzer
-from antithesis.pipeline.alert_manager import AlertManager
-from antithesis.api.websocket import WebSocketHub
-from antithesis.api.routes import create_routes, router
-from antithesis.simulator.traffic_gen import generate_event
-from antithesis.extractor import PacketProcessor
-from antithesis.config import (
+from netsentinel.models.registry import ModelRegistry
+from netsentinel.pipeline.analyzer import FlowAnalyzer
+from netsentinel.pipeline.alert_manager import AlertManager
+from netsentinel.api.websocket import WebSocketHub
+from netsentinel.api.routes import create_routes, router
+from netsentinel.simulator.traffic_gen import generate_event
+from netsentinel.extractor import PacketProcessor
+from netsentinel.config import (
     MAX_ALERTS_STORED, FLOW_IDLE_TIMEOUT, FLOW_ACTIVE_TIMEOUT, SESSION_MIN_FLOWS,
 )
 

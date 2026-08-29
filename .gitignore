@@ -52,3 +52,17 @@ htmlcov/
 # PCAP files (can be large)
 *.pcap
 *.pcapng
+
+# Large CSV files
+*.csv
+
+# Kiro and cache folders
+.kiro/
+.cache/
+
+# Upload directories
+uploads/
+pcaps/
+
+# Node modules
+node_modules/

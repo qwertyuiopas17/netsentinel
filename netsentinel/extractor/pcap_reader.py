@@ -20,9 +20,9 @@ import logging
 import threading
 from typing import Generator, Optional
 
-from antithesis.extractor.flow_extractor import FlowExtractor
-from antithesis.extractor.dns_extractor import DNSExtractor
-from antithesis.extractor.session_builder import SessionBuilder
+from netsentinel.extractor.flow_extractor import FlowExtractor
+from netsentinel.extractor.dns_extractor import DNSExtractor
+from netsentinel.extractor.session_builder import SessionBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +121,21 @@ class PacketProcessor:
         logger.info(f"Processing PCAP: {pcap_path}")
         start_time = time.time()
 
+        reader_is_generator = False
         try:
-            reader = PcapReader(pcap_path)
+            # Use rdpcap instead of PcapReader for Windows compatibility
+            from scapy.all import rdpcap
+            logger.info(f"Reading PCAP into memory: {pcap_path}")
+            all_packets = rdpcap(pcap_path)
+            logger.info(f"Loaded {len(all_packets)} packets")
+            
+            # Create a generator from the list
+            def packet_generator():
+                for pkt in all_packets:
+                    yield pkt
+            
+            reader = packet_generator()
+            reader_is_generator = True
         except Exception as e:
             logger.error(f"Failed to open PCAP: {e}")
             return
@@ -157,7 +170,7 @@ class PacketProcessor:
         for session in self.session_builder.check_all_pairs():
             yield session
 
-        reader.close()
+        reader.close() if hasattr(reader, 'close') and not reader_is_generator else None
 
         elapsed = time.time() - start_time
         logger.info(

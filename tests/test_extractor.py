@@ -1,6 +1,6 @@
 import os
 from scapy.all import IP, TCP, UDP, DNS, DNSQR, wrpcap
-from antithesis.extractor import PacketProcessor
+from netsentinel.extractor import PacketProcessor
 
 def create_test_pcap(filename="test.pcap"):
     packets = []

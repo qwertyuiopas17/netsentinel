@@ -12,7 +12,7 @@ import numpy as np
 import onnxruntime as ort
 from collections import Counter
 
-from antithesis.config import DGA_MODEL_PATH
+from netsentinel.config import DGA_MODEL_PATH
 
 # Character encoding (same as training)
 CHAR_VOCAB = {c: i + 1 for i, c in enumerate("abcdefghijklmnopqrstuvwxyz0123456789-.")}

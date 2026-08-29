@@ -3,9 +3,9 @@
 This is the central orchestrator. It receives raw "events" from the 
 traffic simulator and routes them to the appropriate model(s).
 """
-from antithesis.models.registry import ModelRegistry
-from antithesis.pipeline.alert_manager import AlertManager
-from antithesis.config import THRESHOLDS
+from netsentinel.models.registry import ModelRegistry
+from netsentinel.pipeline.alert_manager import AlertManager
+from netsentinel.config import THRESHOLDS
 
 
 class FlowAnalyzer:

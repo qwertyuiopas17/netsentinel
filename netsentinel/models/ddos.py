@@ -10,7 +10,7 @@ import json
 import numpy as np
 import onnxruntime as ort
 
-from antithesis.config import DDOS_MODEL_PATH, DDOS_FEATURES_PATH, DDOS_LABELS_PATH
+from netsentinel.config import DDOS_MODEL_PATH, DDOS_FEATURES_PATH, DDOS_LABELS_PATH
 
 
 class DDoSDetector:

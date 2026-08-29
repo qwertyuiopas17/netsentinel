@@ -11,7 +11,7 @@ import uuid
 import random
 from datetime import datetime, timezone
 
-from antithesis.config import SEVERITY_MAP, MITRE_MAP, FAKE_GEO, TARGET
+from netsentinel.config import SEVERITY_MAP, MITRE_MAP, FAKE_GEO, TARGET
 
 
 class AlertManager:
@@ -94,11 +94,26 @@ class AlertManager:
             else:
                 geo = {"src_country": "??", "dst_country": TARGET["country"]}
         
+        # Extract 5-tuple flow ID from flow_meta if available
+        flow_id = None
+        if flow_meta:
+            flow_id = {
+                "src_ip": flow_meta.get("src_ip", source_ip),
+                "src_port": flow_meta.get("src_port", 0),
+                "dst_ip": flow_meta.get("dst_ip", dest_ip or TARGET["ip"]),
+                "dst_port": flow_meta.get("dst_port", 0),
+                "protocol": flow_meta.get("protocol", "TCP"),
+            }
+        
         alert = {
             "id": str(uuid.uuid4()),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "source_ip": source_ip,
             "dest_ip": dest_ip or TARGET["ip"],
+            
+            # NEW: 5-tuple flow identifier (Problem #5)
+            "flow": flow_id,
+            
             "threat_class": threat,
             "threat_subtype": model_result.get("subtype", model_result.get("class_name", "")),
             "confidence": round(confidence, 4),

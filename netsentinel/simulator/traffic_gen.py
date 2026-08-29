@@ -10,7 +10,7 @@ Generates events that match what the models expect:
 import random
 import string
 import numpy as np
-from antithesis.config import FAKE_GEO
+from netsentinel.config import FAKE_GEO
 
 
 # ============================================================

@@ -54,8 +54,12 @@ class C2BeaconDetector:
         if len(iats) < 4:
             return np.zeros(5, dtype=np.float32)
         
-        # Compute FFT
-        fft_vals = np.fft.rfft(iats - np.mean(iats))
+        # Compute FFT on RAW IATs (no mean removal)
+        # CRITICAL FIX: Do NOT mean-center before FFT for beacon detection
+        # Original (WRONG): fft_vals = np.fft.rfft(iats - np.mean(iats))
+        # Constant-interval beacons have all energy at one frequency
+        # Mean removal destroys this signal
+        fft_vals = np.fft.rfft(iats)  # Use raw signal
         magnitudes = np.abs(fft_vals[1:])  # Skip DC component
         
         if len(magnitudes) == 0 or magnitudes.sum() == 0:
@@ -151,32 +155,69 @@ class C2BeaconDetector:
         spectral_entropy = float(fft_feats[3])
         peak_prominence = float(fft_feats[4])
         
+        # Benign periodic traffic exclusions (mitigate false positives)
+        # Extract flow metadata if available
+        dest_port = flow_series[0].get('dest_port', 0) if flow_series else 0
+        src_port = flow_series[0].get('src_port', 0) if flow_series else 0
+        total_duration = sum(f.get('iat', 0) for f in flow_series if f.get('iat', 0) > 0)
+        
+        # Compute beacon interval for filtering
+        if len(non_zero_iats) > 4:
+            mean_iat = np.mean(non_zero_iats)
+            beacon_interval = mean_iat
+        else:
+            beacon_interval = 0.0
+        
+        # Filter 1: NTP (port 123, ~64s intervals)
+        is_ntp = (dest_port == 123 or src_port == 123) and (60 < beacon_interval < 70)
+        
+        # Filter 2: TCP keepalives (common ports, ~30s intervals, short duration)
+        is_keepalive = (
+            dest_port in [22, 443, 3389, 5900] and  # SSH, HTTPS, RDP, VNC
+            25 < beacon_interval < 35 and
+            total_duration < 600  # Less than 10 minutes
+        )
+        
+        # Filter 3: DNS refresh (port 53, ~300s intervals)
+        is_dns_refresh = (dest_port == 53 or src_port == 53) and (250 < beacon_interval < 350)
+        
+        # Filter 4: HTTPS health checks (port 443, 10-60s intervals, short flows)
+        is_health_check = (
+            dest_port == 443 and
+            10 < beacon_interval < 60 and
+            len(non_zero_iats) < 20  # Few flows
+        )
+        
+        # If matches benign periodic pattern, force benign classification
+        is_benign_periodic = is_ntp or is_keepalive or is_dns_refresh or is_health_check
+        
         # Periodicity gate with CV check for low-jitter beacons
-        # KNOWN ISSUE: This will false-positive on benign periodic traffic (NTP, keepalives)
-        # TODO: Retrain model with benign periodic negatives
-        low_jitter_beacon = prob > 0.90 and cv < 0.05
+        # Documented in HONEST_TEST_REPORT.md - CV < 0.05 catches constant beacons
+        # but also fires on benign periodic traffic (filtered above)
+        low_jitter_beacon = prob > 0.90 and cv < 0.05 and not is_benign_periodic
         fft_based_beacon = (prob > 0.90 and fft_score > 0.15 and 
                            spectral_entropy < 0.85 and peak_prominence > 3.0)
         is_beacon = low_jitter_beacon or fft_based_beacon
         
-        # Compute estimated beacon interval from FFT
+        # Compute estimated beacon interval from FFT (for reporting)
         if len(non_zero_iats) > 4:
-            fft_vals = np.fft.rfft(non_zero_iats - np.mean(non_zero_iats))
-            magnitudes = np.abs(fft_vals[1:])
-            if len(magnitudes) > 0 and magnitudes.max() > 0:
-                dominant_idx = np.argmax(magnitudes)
+            fft_vals_period = np.fft.rfft(non_zero_iats)
+            magnitudes_period = np.abs(fft_vals_period[1:])
+            if len(magnitudes_period) > 0 and magnitudes_period.max() > 0:
+                dominant_idx = np.argmax(magnitudes_period)
                 period = len(non_zero_iats) / (dominant_idx + 1)
-                beacon_interval = np.mean(non_zero_iats) * period
+                beacon_interval_fft = np.mean(non_zero_iats) * period
             else:
-                beacon_interval = 0.0
+                beacon_interval_fft = beacon_interval
         else:
-            beacon_interval = 0.0
+            beacon_interval_fft = beacon_interval
         
         return {
             "threat": "C2 Beacon" if is_beacon else "Benign",
             "confidence": prob,
             "is_beacon": is_beacon,
-            "periodicity_seconds": float(beacon_interval),
+            "periodicity_seconds": float(beacon_interval_fft),
             "model": "c2_beacon_bilstm",
             "cv": cv,  # Expose for debugging
+            "benign_periodic_filtered": is_benign_periodic,  # For monitoring FP reduction
         }

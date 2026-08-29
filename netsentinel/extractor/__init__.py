@@ -8,10 +8,10 @@
 #     ├── DNSExtractor     → domain strings for DGA model
 #     └── SessionBuilder   → 100-flow time-series for C2 model
 
-from antithesis.extractor.pcap_reader import PacketProcessor
-from antithesis.extractor.flow_extractor import FlowExtractor
-from antithesis.extractor.dns_extractor import DNSExtractor
-from antithesis.extractor.session_builder import SessionBuilder
+from netsentinel.extractor.pcap_reader import PacketProcessor
+from netsentinel.extractor.flow_extractor import FlowExtractor
+from netsentinel.extractor.dns_extractor import DNSExtractor
+from netsentinel.extractor.session_builder import SessionBuilder
 
 __all__ = [
     "PacketProcessor",

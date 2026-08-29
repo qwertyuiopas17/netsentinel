@@ -9,7 +9,7 @@ import json
 import numpy as np
 import onnxruntime as ort
 
-from antithesis.config import ETT_MODEL_PATH, ETT_SCALER_PATH, ETT_CLASSES_PATH
+from netsentinel.config import ETT_MODEL_PATH, ETT_SCALER_PATH, ETT_CLASSES_PATH
 
 
 class EncryptedTrafficDetector:

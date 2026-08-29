@@ -4,7 +4,7 @@ import asyncio
 import shutil
 from fastapi import APIRouter, UploadFile, File, BackgroundTasks
 
-from antithesis.config import PCAP_UPLOAD_DIR, CAPTURE_INTERFACE
+from netsentinel.config import PCAP_UPLOAD_DIR, CAPTURE_INTERFACE
 
 router = APIRouter(prefix="/api")
 
@@ -167,7 +167,7 @@ def create_routes(analyzer, alert_manager, ws_hub, simulator_control, packet_pro
 
 async def _process_pcap_background(pcap_path: str, analyzer, ws_hub):
     """Process a PCAP file in the background, sending alerts via WebSocket."""
-    from antithesis.extractor import PacketProcessor
+    from netsentinel.extractor import PacketProcessor
 
     processor = PacketProcessor()
     alert_count = 0
