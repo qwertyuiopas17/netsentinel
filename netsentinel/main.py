@@ -120,6 +120,7 @@ async def simulation_loop():
     
     stats_interval = 2.0  # Send stats every 2 seconds
     last_stats_time = time.time()
+    port_scan_burst_counter = 0  # Track when to inject port scan bursts
     
     while True:
         if not simulator_control["running"]:
@@ -130,15 +131,27 @@ async def simulation_loop():
         rate = simulator_control.get("rate", 10)
         
         try:
-            # Generate event
-            event = generate_event(mode)
-            
-            # Run through pipeline
-            alert = analyzer.analyze_flow(event)
-            
-            # If threat detected, broadcast to dashboard
-            if alert:
-                await ws_hub.broadcast_alert(alert)
+            # Inject port scan burst every ~20 events in mixed mode
+            if mode == "mixed" and port_scan_burst_counter >= 20:
+                from netsentinel.simulator.traffic_gen import generate_port_scan_burst
+                burst = generate_port_scan_burst()
+                for event in burst:
+                    alert = analyzer.analyze_flow(event)
+                    if alert:
+                        await ws_hub.broadcast_alert(alert)
+                port_scan_burst_counter = 0
+            else:
+                # Generate single event
+                event = generate_event(mode)
+                
+                # Run through pipeline
+                alert = analyzer.analyze_flow(event)
+                
+                # If threat detected, broadcast to dashboard
+                if alert:
+                    await ws_hub.broadcast_alert(alert)
+                
+                port_scan_burst_counter += 1
         except Exception as e:
             # Log but don't crash — one bad event shouldn't kill the loop
             pass

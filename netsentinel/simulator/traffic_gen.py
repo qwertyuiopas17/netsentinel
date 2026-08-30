@@ -327,7 +327,108 @@ def generate_exfil_dns() -> dict:
         "type": "dns",
         "domain": tunnel_domain,
         "source_ip": f"192.168.1.{random.randint(2, 254)}",
+        # Add byte counts for exfil byte ratio evidence
+        "total_fwd_bytes": random.randint(1000, 5000),  # Outbound data
+        "total_bwd_bytes": random.randint(50, 200),     # Small responses
     }
+
+
+def generate_port_scan_burst() -> list[dict]:
+    """Generate a burst of port scan flows from same source.
+    
+    Returns a list of 10-30 flows hitting different ports to trigger
+    the fan_out evidence panel.
+    """
+    attacker = random.choice(list(FAKE_GEO.values()))
+    num_ports = random.randint(10, 30)
+    # Common ports + some random ones
+    ports = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 5432, 8080]
+    ports += [random.randint(1, 65535) for _ in range(num_ports - len(ports))]
+    ports = ports[:num_ports]
+    
+    burst = []
+    for target_port in ports:
+        burst.append({
+            "type": "flow",
+            "source_ip": attacker["ip"],
+            "dest_ip": "10.0.0.1",
+            "source_port": random.randint(49152, 65535),
+            "dest_port": target_port,
+            "protocol": 6,
+            "features": {
+                "Protocol": 6,  # TCP
+                "Flow Duration": random.uniform(0, 500),
+                "Total Fwd Packets": 1,
+                "Total Backward Packets": random.choice([0, 1]),
+                "Fwd Packets Length Total": 40,
+                "Bwd Packets Length Total": random.choice([0, 40]),
+                "Fwd Packet Length Max": 40,
+                "Fwd Packet Length Min": 40,
+                "Fwd Packet Length Mean": 40,
+                "Fwd Packet Length Std": 0,
+                "Bwd Packet Length Max": 0,
+                "Bwd Packet Length Min": 0,
+                "Bwd Packet Length Mean": 0,
+                "Bwd Packet Length Std": 0,
+                "Flow Bytes/s": random.uniform(1000, 10000),
+                "Flow Packets/s": random.uniform(50, 500),
+                "Flow IAT Mean": random.uniform(0, 100),
+                "Flow IAT Std": random.uniform(0, 50),
+                "Flow IAT Max": random.uniform(0, 200),
+                "Flow IAT Min": 0,
+                "Fwd IAT Mean": 0,
+                "Bwd IAT Total": 0,
+                "Bwd IAT Mean": 0,
+                "Bwd IAT Std": 0,
+                "Bwd IAT Max": 0,
+                "Bwd IAT Min": 0,
+                "SYN Flag Count": 1,
+                "ACK Flag Count": 0,
+                "RST Flag Count": random.choice([0, 1]),
+                "URG Flag Count": 0,
+                "CWE Flag Count": 0,
+                "Fwd PSH Flags": 0,
+                "Fwd Header Length": 20,
+                "Bwd Header Length": 0,
+                "Bwd Packets/s": 0,
+                "Packet Length Max": 40,
+                "Packet Length Mean": 40,
+                "Packet Length Std": 0,
+                "Packet Length Variance": 0,
+                "Down/Up Ratio": 0,
+                "Avg Packet Size": 40,
+                "Avg Fwd Segment Size": 40,
+                "Avg Bwd Segment Size": 0,
+                "Subflow Fwd Packets": 1,
+                "Subflow Fwd Bytes": 40,
+                "Subflow Bwd Packets": 0,
+                "Subflow Bwd Bytes": 0,
+                "Init Fwd Win Bytes": random.randint(1024, 4096),
+                "Init Bwd Win Bytes": 0,
+                "Fwd Act Data Packets": 0,
+                "Fwd Seg Size Min": 40,
+                "Active Mean": 0, "Active Std": 0, "Active Max": 0, "Active Min": 0,
+                "Idle Mean": 0, "Idle Std": 0, "Idle Max": 0, "Idle Min": 0,
+                "duration": random.uniform(0, 500),
+                "total_fiat": 0, "total_biat": 0,
+                "min_fiat": 0, "min_biat": 0,
+                "max_fiat": 0, "max_biat": 0,
+                "mean_fiat": 0, "mean_biat": 0,
+                "flowPktsPerSecond": random.uniform(50, 500),
+                "flowBytesPerSecond": random.uniform(1000, 10000),
+                "min_flowiat": 0, "max_flowiat": 0,
+                "mean_flowiat": 0, "std_flowiat": 0,
+                "min_active": 0, "mean_active": 0, "max_active": 0, "std_active": 0,
+                "min_idle": 0, "mean_idle": 0, "max_idle": 0, "std_idle": 0,
+                "fwd_bwd_ratio": 999.0,
+                "iat_cv": 0.1,
+                "iat_range_norm": 0.5,
+                "active_idle_ratio": 999.0,
+                "duration_log": 2.0,
+                "bytes_per_packet": 40,
+            }
+        })
+    return burst
 
 
 # ============================================================

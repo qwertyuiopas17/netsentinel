@@ -120,12 +120,12 @@ class FlowAnalyzer:
             dns_features = build_dns_features(domain)
             if dns_features:
                 # Add byte counts if available in the event
-                if "features" in event:
-                    fwd_bytes = event["features"].get("Fwd Packets Length Total", 0)
-                    bwd_bytes = event["features"].get("Bwd Packets Length Total", 0)
-                    if fwd_bytes or bwd_bytes:
-                        dns_features["total_fwd_bytes"] = fwd_bytes
-                        dns_features["total_bwd_bytes"] = bwd_bytes
+                # Check both event root (simulator) and event["features"] (PCAP)
+                fwd_bytes = event.get("total_fwd_bytes") or (event.get("features", {}).get("Fwd Packets Length Total", 0))
+                bwd_bytes = event.get("total_bwd_bytes") or (event.get("features", {}).get("Bwd Packets Length Total", 0))
+                if fwd_bytes or bwd_bytes:
+                    dns_features["total_fwd_bytes"] = fwd_bytes
+                    dns_features["total_bwd_bytes"] = bwd_bytes
                 
                 result = self.registry.exfiltration.predict(dns_features)
                 if (result.get("threat") == "Data Exfiltration"
