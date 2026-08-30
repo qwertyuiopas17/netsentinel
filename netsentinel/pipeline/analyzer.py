@@ -230,8 +230,10 @@ class FlowAnalyzer:
                     unsw_features["scanned_ports"] = list(self._recent_dst_ports[source_ip])
                     unsw_features["dst_ip"] = dest_ip or "unknown"
                     unsw_features["window_seconds"] = 8
+                    print(f"[DEBUG] Port scan check: {source_ip} -> {len(self._recent_dst_ports[source_ip])} ports")
                 
                 result = self.registry.port_scan.predict(unsw_features)
+                print(f"[DEBUG] Port scan result: {result.get('threat')} @ {result.get('confidence', 0):.4f} confidence")
                 if (result.get("threat") == "Port Scan"
                         and result.get("confidence", 0) >= THRESHOLDS["port_scan"]):
                     alert = self.alert_manager.create_alert(
@@ -240,6 +242,8 @@ class FlowAnalyzer:
                         dest_ip=dest_ip,
                         flow_meta=flow_meta,
                     )
+                    print(f"[✓] Port scan alert created!")
+
         
         return alert
     

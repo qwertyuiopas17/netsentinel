@@ -103,7 +103,7 @@ THRESHOLDS = {
     "c2_beacon": 0.80,
     "dga": 0.80,
     "encrypted_malware": 0.70,
-    "port_scan": 0.85,
+    "port_scan": 0.50,  # Lowered from 0.85 for simulator testing
     "exfiltration": 0.70,
 }
 
