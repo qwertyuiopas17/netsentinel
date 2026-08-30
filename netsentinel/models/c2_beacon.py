@@ -225,12 +225,11 @@ class C2BeaconDetector:
             # Take first 24 IATs for the frontend chart
             iat_values = [float(iat) for iat in iats[:24] if iat > 0]
             
-            result["evidence"] = {
-                "iat": iat_values,
-                "beacon_interval": round(float(beacon_interval_fft), 2),
-                "coefficient_of_variation": round(cv, 3),
-                "fft_score": round(fft_score, 3),
-            }
+            # Put evidence at root level - alert_manager copies to evidence{}
+            result["iat"] = iat_values
+            result["beacon_interval"] = round(float(beacon_interval_fft), 2)
+            result["coefficient_of_variation"] = round(cv, 3)
+            result["fft_score"] = round(fft_score, 3)
         
         return result
 

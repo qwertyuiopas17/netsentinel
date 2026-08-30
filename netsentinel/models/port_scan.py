@@ -76,21 +76,19 @@ class PortScanDetector:
             }
             
             if is_threat:
-                evidence = {
-                    "connection_rate": float(rate),
-                    "packets_per_flow": int(pkts),
-                    "scan_indicator": "high_rate_low_packets"
-                }
+                # Put evidence at root level - alert_manager copies to evidence{}
+                result["connection_rate"] = float(rate)
+                result["packets_per_flow"] = int(pkts)
+                result["scan_indicator"] = "high_rate_low_packets"
                 
                 # Add fan_out if available (passed from analyzer/connection tracker)
                 if "scanned_ports" in features:
-                    evidence["fan_out"] = {
+                    result["fan_out"] = {
                         "target_ip": features.get("dst_ip", "unknown"),
                         "ports": sorted(features["scanned_ports"]),
                         "window": int(features.get("window_seconds", 8)),
                     }
                 
-                result["evidence"] = evidence
                 result["mitre"] = {
                     "tactic": "Discovery",
                     "technique": "T1046",

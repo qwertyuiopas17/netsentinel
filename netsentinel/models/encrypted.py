@@ -86,17 +86,13 @@ class EncryptedTrafficDetector:
         }
         
         # Add JA4 fingerprint if available (from TLS extraction)
+        # Put at root level - alert_manager copies to evidence{}
         if is_vpn or confidence > 0.7:
-            evidence = {}
-            
             if "ja4" in features:
-                evidence["ja4"] = features["ja4"]
+                result["ja4"] = features["ja4"]
                 
             if "ja4_rarity" in features:
-                evidence["ja4_rarity"] = round(float(features["ja4_rarity"]), 2)
-            
-            if evidence:
-                result["evidence"] = evidence
+                result["ja4_rarity"] = round(float(features["ja4_rarity"]), 2)
         
         return result
     

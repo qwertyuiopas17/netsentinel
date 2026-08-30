@@ -100,21 +100,19 @@ class ExfiltrationDetector:
             }
             
             if is_exfil:
-                evidence = {
-                    "reconstruction_error": float(mse),
-                    "dns_entropy": float(dns_entropy),
-                    "subdomain_length": int(subdomain_len),
-                    "anomaly_type": "dns_tunneling"
-                }
+                # Put evidence fields at root level - alert_manager will copy to evidence{}
+                result["reconstruction_error"] = float(mse)
+                result["dns_entropy"] = float(dns_entropy)
+                result["subdomain_length"] = int(subdomain_len)
+                result["anomaly_type"] = "dns_tunneling"
                 
                 # Add byte ratio if available (from flow stats)
                 if "total_fwd_bytes" in features and "total_bwd_bytes" in features:
-                    evidence["byte_ratio"] = {
+                    result["byte_ratio"] = {
                         "outbound": int(features["total_fwd_bytes"]),
                         "inbound": int(features["total_bwd_bytes"]),
                     }
                 
-                result["evidence"] = evidence
                 result["mitre"] = {
                     "tactic": "Exfiltration",
                     "technique": "T1048",

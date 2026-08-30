@@ -105,11 +105,10 @@ class DDoSDetector:
             pps = features.get("Flow Packets/s", 0)
             bps = features.get("Flow Bytes/s", 0)
             
-            result["evidence"] = {
-                "pps": round(float(pps), 2),
-                "bps": round(float(bps), 2),
-                "attack_type": self.label_map.get(str(predicted_label), "Unknown"),
-            }
+            # Put evidence at root level - alert_manager copies to evidence{}
+            result["pps"] = round(float(pps), 2)
+            result["bps"] = round(float(bps), 2)
+            result["attack_type"] = self.label_map.get(str(predicted_label), "Unknown")
         
         return result
     
