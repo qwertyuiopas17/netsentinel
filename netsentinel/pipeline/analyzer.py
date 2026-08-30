@@ -236,18 +236,18 @@ class FlowAnalyzer:
                     # If >10 ports scanned, create alert with heuristic evidence
                     if num_ports >= 10:
                         print(f"[🎯] Port scan heuristic: {source_ip} -> {num_ports} ports (threshold: 10)")
-                        # Create synthetic result for evidence panel
+                        # Create synthetic result for alert_manager
+                        # Note: alert_manager copies all non-standard keys into evidence{}
                         result = {
                             "threat": "Port Scan",
-                            "confidence": min(0.5 + (num_ports / 100), 0.95),  # Scale with port count
+                            "confidence": min(0.5 + (num_ports / 100), 0.95),
                             "model": "port_scan_heuristic",
-                            "evidence": {
-                                "fan_out": {
-                                    "target_ip": dest_ip or "unknown",
-                                    "ports": sorted(list(self._recent_dst_ports[source_ip]))[:30],  # Max 30
-                                    "total_ports": num_ports,
-                                    "window": 8,
-                                }
+                            # Put fan_out at root level - alert_manager will copy it to evidence{}
+                            "fan_out": {
+                                "target_ip": dest_ip or "unknown",
+                                "ports": sorted(list(self._recent_dst_ports[source_ip]))[:30],
+                                "total_ports": num_ports,
+                                "window": 8,
                             },
                             "mitre": {
                                 "tactic": "Discovery",
@@ -262,6 +262,10 @@ class FlowAnalyzer:
                             flow_meta=flow_meta,
                         )
                         print(f"[✓] Port scan alert created (heuristic)!")
+                        if alert:
+                            print(f"[DEBUG] Alert evidence keys: {list(alert.get('evidence', {}).keys())}")
+
+
                     else:
                         # Still try ML model for low port counts
                         result = self.registry.port_scan.predict(unsw_features)
