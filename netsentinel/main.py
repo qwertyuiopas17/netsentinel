@@ -1,7 +1,7 @@
 """NetSentinel — Main FastAPI Application.
 
 This is the entry point. It:
-1. Loads all 4 ONNX models on startup
+1. Loads all 6 ONNX models on startup
 2. Initializes the extraction layer (PCAP → features)
 3. Starts a background traffic simulation loop
 4. Serves WebSocket for real-time alerts to the React dashboard

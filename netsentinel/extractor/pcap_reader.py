@@ -121,21 +121,12 @@ class PacketProcessor:
         logger.info(f"Processing PCAP: {pcap_path}")
         start_time = time.time()
 
-        reader_is_generator = False
         try:
-            # Use rdpcap instead of PcapReader for Windows compatibility
-            from scapy.all import rdpcap
-            logger.info(f"Reading PCAP into memory: {pcap_path}")
-            all_packets = rdpcap(pcap_path)
-            logger.info(f"Loaded {len(all_packets)} packets")
-            
-            # Create a generator from the list
-            def packet_generator():
-                for pkt in all_packets:
-                    yield pkt
-            
-            reader = packet_generator()
-            reader_is_generator = True
+            # Use streaming PcapReader — memory efficient, works for any file size.
+            # (rdpcap loads the entire file into RAM which crashes on large PCAPs)
+            from scapy.utils import PcapReader
+            reader = PcapReader(pcap_path)
+            logger.info(f"Streaming PCAP: {pcap_path}")
         except Exception as e:
             logger.error(f"Failed to open PCAP: {e}")
             return
@@ -170,7 +161,8 @@ class PacketProcessor:
         for session in self.session_builder.check_all_pairs():
             yield session
 
-        reader.close() if hasattr(reader, 'close') and not reader_is_generator else None
+        if hasattr(reader, 'close'):
+            reader.close()
 
         elapsed = time.time() - start_time
         logger.info(

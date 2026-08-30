@@ -213,6 +213,123 @@ def generate_c2_session() -> dict:
     }
 
 
+def generate_port_scan_flow() -> dict:
+    """Generate a port-scan flow event (SYN scan characteristics).
+    
+    Port scans have: high connection rate, low packets per flow,
+    sequential port targeting, and mostly SYN-only packets.
+    """
+    attacker = random.choice(list(FAKE_GEO.values()))
+    target_port = random.randint(1, 65535)
+    return {
+        "type": "flow",
+        "source_ip": attacker["ip"],
+        "dest_ip": "10.0.0.1",
+        "source_port": random.randint(49152, 65535),
+        "dest_port": target_port,
+        "protocol": 6,
+        "features": {
+            "Protocol": 6,  # TCP
+            "Flow Duration": random.uniform(0, 500),  # Very short
+            "Total Fwd Packets": 1,  # SYN only
+            "Total Backward Packets": random.choice([0, 1]),  # Maybe SYN-ACK
+            "Fwd Packets Length Total": 40,
+            "Bwd Packets Length Total": random.choice([0, 40]),
+            "Fwd Packet Length Max": 40,
+            "Fwd Packet Length Min": 40,
+            "Fwd Packet Length Mean": 40,
+            "Fwd Packet Length Std": 0,
+            "Bwd Packet Length Max": 0,
+            "Bwd Packet Length Min": 0,
+            "Bwd Packet Length Mean": 0,
+            "Bwd Packet Length Std": 0,
+            "Flow Bytes/s": random.uniform(1000, 10000),
+            "Flow Packets/s": random.uniform(50, 500),  # Moderate rate
+            "Flow IAT Mean": random.uniform(0, 100),
+            "Flow IAT Std": random.uniform(0, 50),
+            "Flow IAT Max": random.uniform(0, 200),
+            "Flow IAT Min": 0,
+            "Fwd IAT Mean": 0,
+            "Bwd IAT Total": 0,
+            "Bwd IAT Mean": 0,
+            "Bwd IAT Std": 0,
+            "Bwd IAT Max": 0,
+            "Bwd IAT Min": 0,
+            "SYN Flag Count": 1,  # SYN scan
+            "ACK Flag Count": 0,
+            "RST Flag Count": random.choice([0, 1]),  # Port closed → RST
+            "URG Flag Count": 0,
+            "CWE Flag Count": 0,
+            "Fwd PSH Flags": 0,
+            "Fwd Header Length": 20,
+            "Bwd Header Length": 0,
+            "Bwd Packets/s": 0,
+            "Packet Length Max": 40,
+            "Packet Length Mean": 40,
+            "Packet Length Std": 0,
+            "Packet Length Variance": 0,
+            "Down/Up Ratio": 0,
+            "Avg Packet Size": 40,
+            "Avg Fwd Segment Size": 40,
+            "Avg Bwd Segment Size": 0,
+            "Subflow Fwd Packets": 1,
+            "Subflow Fwd Bytes": 40,
+            "Subflow Bwd Packets": 0,
+            "Subflow Bwd Bytes": 0,
+            "Init Fwd Win Bytes": random.randint(1024, 4096),
+            "Init Bwd Win Bytes": 0,
+            "Fwd Act Data Packets": 0,
+            "Fwd Seg Size Min": 40,
+            "Active Mean": 0, "Active Std": 0, "Active Max": 0, "Active Min": 0,
+            "Idle Mean": 0, "Idle Std": 0, "Idle Max": 0, "Idle Min": 0,
+            # ETT features (minimal for scan)
+            "duration": random.uniform(0, 500),
+            "total_fiat": 0, "total_biat": 0,
+            "min_fiat": 0, "min_biat": 0,
+            "max_fiat": 0, "max_biat": 0,
+            "mean_fiat": 0, "mean_biat": 0,
+            "flowPktsPerSecond": random.uniform(50, 500),
+            "flowBytesPerSecond": random.uniform(1000, 10000),
+            "min_flowiat": 0, "max_flowiat": 0,
+            "mean_flowiat": 0, "std_flowiat": 0,
+            "min_active": 0, "mean_active": 0, "max_active": 0, "std_active": 0,
+            "min_idle": 0, "mean_idle": 0, "max_idle": 0, "std_idle": 0,
+            "fwd_bwd_ratio": 999.0,
+            "iat_cv": 0.1,
+            "iat_range_norm": 0.5,
+            "active_idle_ratio": 999.0,
+            "duration_log": 2.0,
+            "bytes_per_packet": 40,
+        }
+    }
+
+
+def generate_exfil_dns() -> dict:
+    """Generate a DNS-tunneling exfiltration query.
+    
+    DNS tunnel domains have: very long subdomains, high entropy,
+    hex-encoded data payloads, many labels.
+    """
+    # Generate a domain that looks like DNS tunneling
+    # Encode "data" as hex in the subdomain
+    data_len = random.randint(20, 50)
+    hex_data = ''.join(random.choice('0123456789abcdef') for _ in range(data_len))
+    # Split into chunks for subdomain labels
+    chunk_size = random.randint(10, 20)
+    chunks = [hex_data[i:i+chunk_size] for i in range(0, len(hex_data), chunk_size)]
+    tunnel_domain = '.'.join(chunks) + '.' + random.choice([
+        'evil-tunnel.com', 'data-exfil.net', 'c2-dns.xyz',
+        'exfiltrate.top', 'tunnel-data.info',
+    ])
+    
+    attacker = random.choice(list(FAKE_GEO.values()))
+    return {
+        "type": "dns",
+        "domain": tunnel_domain,
+        "source_ip": f"192.168.1.{random.randint(2, 254)}",
+    }
+
+
 # ============================================================
 # Mixed Mode Generator
 # ============================================================
@@ -222,7 +339,8 @@ def generate_event(attack_mode: str = "normal") -> dict:
     Generate a single event based on attack mode.
     
     Args:
-        attack_mode: "normal", "ddos", "dga", "c2", or "mixed"
+        attack_mode: "normal", "ddos", "dga", "c2", "port_scan",
+                     "exfil", or "mixed"
     
     Returns:
         Event dict ready for FlowAnalyzer
@@ -241,20 +359,30 @@ def generate_event(attack_mode: str = "normal") -> dict:
     
     elif attack_mode == "c2":
         return generate_c2_session()
+
+    elif attack_mode == "port_scan":
+        return generate_port_scan_flow()
+
+    elif attack_mode == "exfil":
+        return generate_exfil_dns()
     
     elif attack_mode == "mixed":
-        # Normal background with random attack injection
+        # Normal background with random attack injection (all 6 classes)
         r = random.random()
-        if r < 0.60:
+        if r < 0.45:
             return generate_normal_flow()
-        elif r < 0.70:
+        elif r < 0.55:
             return generate_normal_dns()
-        elif r < 0.80:
+        elif r < 0.65:
             return generate_ddos_flow()
-        elif r < 0.88:
+        elif r < 0.73:
             return generate_dga_dns()
-        elif r < 0.95:
+        elif r < 0.80:
             return generate_c2_session()
+        elif r < 0.88:
+            return generate_port_scan_flow()
+        elif r < 0.95:
+            return generate_exfil_dns()
         else:
             return generate_normal_flow()
     

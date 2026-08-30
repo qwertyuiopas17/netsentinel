@@ -96,6 +96,8 @@ THRESHOLDS = {
     "c2_beacon": 0.80,
     "dga": 0.80,
     "encrypted_malware": 0.70,
+    "port_scan": 0.85,
+    "exfiltration": 0.70,
 }
 
 # ============================================================
@@ -109,6 +111,8 @@ SEVERITY_MAP = {
     "DNS Tunnel": "HIGH",
     "VPN Traffic": "MEDIUM",
     "Encrypted Malware": "CRITICAL",
+    "Port Scan": "MEDIUM",
+    "Data Exfiltration": "HIGH",
 }
 
 # ============================================================
@@ -121,6 +125,8 @@ MITRE_MAP = {
     "DNS Tunnel": {"tactic": "Exfiltration", "technique": "T1048", "name": "Exfiltration Over Alternative Protocol"},
     "VPN Traffic": {"tactic": "Defense Evasion", "technique": "T1572", "name": "Protocol Tunneling"},
     "Encrypted Malware": {"tactic": "Command and Control", "technique": "T1573", "name": "Encrypted Channel"},
+    "Port Scan": {"tactic": "Discovery", "technique": "T1046", "name": "Network Service Scanning"},
+    "Data Exfiltration": {"tactic": "Exfiltration", "technique": "T1048", "name": "Exfiltration Over Alternative Protocol"},
 }
 
 # ============================================================

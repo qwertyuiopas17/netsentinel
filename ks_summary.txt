@@ -1,0 +1,73 @@
+============================================================
+NetSentinel -- Covariate Shift Report
+============================================================
+
+CICFlowMeter ref:  C:\Users\gtrip\OneDrive\Desktop\netsentinel\Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv
+Our extractor:     C:\Users\gtrip\OneDrive\Desktop\netsentinel\ours.csv
+
+Total common features compared: 51
+Shifted (KS > 0.1):             47
+Stable  (KS <= 0.1):            4
+
+------------------------------------------------------------
+TOP SHIFTED FEATURES (KS > 0.1) -- need investigation:
+------------------------------------------------------------
+  Fwd Packet Length Min               KS=0.842  ref_mean=27.88  our_mean=52.69
+  Avg Fwd Segment Size                KS=0.712  ref_mean=164.83  our_mean=106.40
+  Fwd Packet Length Mean              KS=0.712  ref_mean=164.83  our_mean=106.40
+  Fwd Packet Length Max               KS=0.698  ref_mean=538.54  our_mean=346.97
+  Bwd Packet Length Min               KS=0.682  ref_mean=16.72  our_mean=84.50
+  Active Max                          KS=0.642  ref_mean=208084.87  our_mean=616201.43
+  Active Mean                         KS=0.642  ref_mean=184826.09  our_mean=341517.20
+  Active Min                          KS=0.642  ref_mean=177620.09  our_mean=262374.24
+  Subflow Fwd Bytes                   KS=0.601  ref_mean=939.46  our_mean=1974.13
+  Fwd Header Length                   KS=0.489  ref_mean=111.52  our_mean=612.90
+  Packet Length Std                   KS=0.417  ref_mean=1085.59  our_mean=176.13
+  Packet Length Variance              KS=0.417  ref_mean=2789905.55  our_mean=122797.66
+  Bwd Header Length                   KS=0.413  ref_mean=106.79  our_mean=672.23
+  Flow IAT Std                        KS=0.402  ref_mean=4248569.38  our_mean=1674593.53
+  Flow IAT Max                        KS=0.395  ref_mean=13489773.82  our_mean=5759527.91
+  Fwd IAT Mean                        KS=0.391  ref_mean=2540609.51  our_mean=1780949.79
+  Flow Duration                       KS=0.386  ref_mean=16241648.53  our_mean=15853864.01
+  Packet Length Mean                  KS=0.383  ref_mean=515.00  our_mean=166.93
+  Flow Packets/s                      KS=0.372  ref_mean=14241.20  our_mean=79235.18
+  Bwd Packet Length Std               KS=0.360  ref_mean=1230.17  our_mean=147.46
+  Avg Bwd Segment Size                KS=0.355  ref_mean=890.54  our_mean=221.57
+  Bwd Packet Length Mean              KS=0.355  ref_mean=890.54  our_mean=221.57
+  Flow IAT Mean                       KS=0.351  ref_mean=1580587.24  our_mean=882910.77
+  Bwd Packet Length Max               KS=0.350  ref_mean=2735.59  our_mean=515.10
+  Subflow Fwd Packets                 KS=0.347  ref_mean=4.87  our_mean=23.56
+  Total Fwd Packets                   KS=0.347  ref_mean=4.87  our_mean=23.56
+  Subflow Bwd Bytes                   KS=0.326  ref_mean=5960.48  our_mean=48727.47
+  Flow Bytes/s                        KS=0.318  ref_mean=585393.88  our_mean=3754041.79
+  Bwd IAT Std                         KS=0.290  ref_mean=1610306.24  our_mean=1007140.37
+  Fwd PSH Flags                       KS=0.279  ref_mean=0.03  our_mean=0.31
+  Bwd IAT Mean                        KS=0.278  ref_mean=947632.22  our_mean=1560310.96
+  Bwd IAT Max                         KS=0.274  ref_mean=4567514.46  our_mean=3584314.95
+  Bwd IAT Total                       KS=0.274  ref_mean=6564701.09  our_mean=12681727.58
+  Bwd PSH Flags                       KS=0.272  ref_mean=0.00  our_mean=0.27
+  SYN Flag Count                      KS=0.270  ref_mean=0.03  our_mean=0.30
+  Subflow Bwd Packets                 KS=0.262  ref_mean=4.57  our_mean=26.35
+  Total Backward Packets              KS=0.262  ref_mean=4.57  our_mean=26.35
+  Down/Up Ratio                       KS=0.260  ref_mean=1.01  our_mean=0.79
+  Bwd Packets/s                       KS=0.243  ref_mean=1641.69  our_mean=4442.22
+  Fwd Packet Length Std               KS=0.187  ref_mean=214.91  our_mean=89.24
+  Flow IAT Min                        KS=0.178  ref_mean=28118.55  our_mean=46700.52
+  Idle Min                            KS=0.166  ref_mean=7755355.09  our_mean=4728187.24
+  Idle Max                            KS=0.159  ref_mean=12878128.94  our_mean=5610574.19
+  Idle Mean                           KS=0.159  ref_mean=10322143.42  our_mean=5211454.64
+  URG Flag Count                      KS=0.141  ref_mean=0.14  our_mean=0.00
+  Bwd IAT Min                         KS=0.139  ref_mean=225781.74  our_mean=767253.43
+  Active Std                          KS=0.125  ref_mean=12934.36  our_mean=128911.17
+
+------------------------------------------------------------
+STABLE FEATURES (KS <= 0.1) -- good alignment:
+------------------------------------------------------------
+  RST Flag Count                      KS=0.076
+  Idle Std                            KS=0.072
+  ACK Flag Count                      KS=0.025
+  CWE Flag Count                      KS=0.000
+
+============================================================
+Shift penalty estimate: 92.2% of features are shifted
+============================================================

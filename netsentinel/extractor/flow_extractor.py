@@ -353,7 +353,9 @@ class FlowExtractor:
 
         # Duration in microseconds (CIC format)
         duration_us = (flow.last_seen - flow.start_time) * 1_000_000
-        duration_s = max(flow.last_seen - flow.start_time, 1e-9)
+        # Use at least 1 microsecond floor to avoid ÷0 and astronomical rates
+        # for single-packet / very-short flows (CIC also clamps at ~1µs)
+        duration_s = max(flow.last_seen - flow.start_time, 1e-6)
 
         # Inter-arrival times
         flow_iats = _compute_iats(all_times)      # whole flow
@@ -365,13 +367,15 @@ class FlowExtractor:
         fwd_iats_us = [i * 1_000_000 for i in fwd_iats]
         bwd_iats_us = [i * 1_000_000 for i in bwd_iats]
 
-        # TCP flag counts (across all packets)
+        # TCP flag counts — CICFlowMeter stores these as BINARY per flow
+        # (0 = no packet had the flag, 1 = at least one packet had the flag)
+        # NOT a count of how many packets had the flag.
         all_flags = [p.flags for p in fwd] + [p.flags for p in bwd]
-        syn_count = sum(1 for f in all_flags if f & FLAG_SYN)
-        rst_count = sum(1 for f in all_flags if f & FLAG_RST)
-        ack_count = sum(1 for f in all_flags if f & FLAG_ACK)
-        urg_count = sum(1 for f in all_flags if f & FLAG_URG)
-        cwe_count = sum(1 for f in all_flags if f & FLAG_CWR)
+        syn_count  = 1 if any(f & FLAG_SYN for f in all_flags) else 0
+        rst_count  = 1 if any(f & FLAG_RST for f in all_flags) else 0
+        ack_count  = 1 if any(f & FLAG_ACK for f in all_flags) else 0
+        urg_count  = 1 if any(f & FLAG_URG for f in all_flags) else 0
+        cwe_count  = 1 if any(f & FLAG_CWR for f in all_flags) else 0
 
         # Header lengths
         fwd_header_total = sum(p.header_size for p in fwd)
@@ -438,7 +442,9 @@ class FlowExtractor:
             "Bwd IAT Std": _std(bwd_iats_us),
             "Bwd IAT Max": max(bwd_iats_us) if bwd_iats_us else 0,
             "Bwd IAT Min": min(bwd_iats_us) if bwd_iats_us else 0,
-            "Fwd PSH Flags": flow.fwd_psh_count,
+            # Fwd/Bwd PSH Flags — binary per flow (CICFlowMeter definition)
+            "Fwd PSH Flags": 1 if flow.fwd_psh_count > 0 else 0,
+            "Bwd PSH Flags": 1 if any(p.flags & FLAG_PSH for p in bwd) else 0,
             "Fwd Header Length": fwd_header_total,
             "Bwd Header Length": bwd_header_total,
             "Bwd Packets/s": total_bwd / duration_s,

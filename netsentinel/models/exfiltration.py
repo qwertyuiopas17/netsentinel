@@ -62,6 +62,15 @@ class ExfiltrationDetector:
         
         print(f"[OK] Exfiltration VAE loaded ({len(self.feature_names)} features)")
     
+    @property
+    def reconstruction_threshold(self) -> float:
+        """Alias for threshold (backwards-compat with test suite)."""
+        return self.threshold
+
+    def set_threshold(self, value: float):
+        """Adjust the reconstruction-error threshold at runtime."""
+        self.threshold = float(value)
+    
     def predict(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """
         Predict if DNS traffic indicates data exfiltration.

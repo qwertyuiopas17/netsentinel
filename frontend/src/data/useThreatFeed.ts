@@ -74,6 +74,15 @@ function initialState(): FeedState {
  *   - sourceCoords/destCoords: [lat, lng] tuples
  */
 
+// Map backend threat_class strings → frontend ThreatType enum values
+// Backend emits raw strings; we normalize here so backend stays canonical.
+const THREAT_MAP: Record<string, string> = {
+  "Data Exfiltration": "Exfiltration",
+  "VPN Traffic": "Encrypted",
+  "Encrypted Malware": "Encrypted",
+  "DNS Tunnel": "DGA",
+};
+
 // Map backend model names → frontend display names
 const MODEL_NAME_MAP: Record<string, string> = {
   "ddos_binary_xgboost": "DDoS XGBoost",
@@ -94,7 +103,15 @@ function parseBackendAlert(raw: any): Alert {
     if (raw.evidence.beacon_interval) indicators.push(`Beacon interval: ${raw.evidence.beacon_interval}s`);
     if (raw.evidence.entropy) indicators.push(`Entropy: ${raw.evidence.entropy.toFixed(2)}`);
     if (raw.evidence.domain) indicators.push(`Domain: ${raw.evidence.domain}`);
-    // Add more evidence field mappings as backend evolves
+    // Port Scan evidence
+    if (raw.evidence.connection_rate) indicators.push(`Connection rate: ${raw.evidence.connection_rate}/s`);
+    if (raw.evidence.fan_out?.ports) indicators.push(`Ports scanned: ${raw.evidence.fan_out.ports.length}`);
+    // Exfiltration evidence
+    if (raw.evidence.reconstruction_error) indicators.push(`Recon error: ${raw.evidence.reconstruction_error.toFixed(4)}`);
+    if (raw.evidence.dns_entropy) indicators.push(`DNS entropy: ${raw.evidence.dns_entropy.toFixed(2)}`);
+    if (raw.evidence.subdomain_length) indicators.push(`Subdomain len: ${raw.evidence.subdomain_length}`);
+    // DDoS source IP entropy
+    if (raw.evidence.src_ip_entropy) indicators.push(`Src IP entropy: ${raw.evidence.src_ip_entropy.toFixed(2)} bits`);
   }
 
   // Fallback indicators if evidence is empty
@@ -102,10 +119,13 @@ function parseBackendAlert(raw: any): Alert {
     indicators.push(`Detected by ${raw.model_name || "ML model"}`);
   }
 
+  // Normalize threat_class using THREAT_MAP (§3b)
+  const threatType = (THREAT_MAP[raw.threat_class] ?? raw.threat_class) as Alert["threatType"];
+
   return {
     id: raw.id,
     timestamp: new Date(raw.timestamp).getTime(), // ISO → epoch ms
-    threatType: raw.threat_class as Alert["threatType"],
+    threatType,
     severity: raw.severity.toLowerCase() as Severity,
     sourceIP: raw.source_ip,
     destIP: raw.dest_ip,

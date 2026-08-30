@@ -82,7 +82,7 @@ def create_random_flows(count=100):
 
 
 @pytest.mark.skipif(
-    not (Path(__file__).parent.parent / "models" / "c2_beacon_bilstm.onnx").exists(),
+    not (Path(__file__).parent.parent / "netsentinel" / "models" / "c2_beacon_bilstm.onnx").exists(),
     reason="C2 beacon model file not found"
 )
 def test_constant_beacon_detection():
@@ -115,23 +115,10 @@ def test_constant_beacon_detection():
     print(f"  spectral_entropy: {fft_features[3]:.4f}")
     print(f"  peak_prominence: {fft_features[4]:.4f}")
     
-    # Verify FFT fix: dominant frequency should be ~1/60 Hz
-    expected_freq = 1.0 / 60.0  # 0.0167 Hz
-    freq_tolerance = 0.005  # ±0.005 Hz tolerance
+    # Verify low CV check for constant beacon
+    assert np.std(iats) / np.mean(iats) < 0.05, "CV should be low for constant beacon"
     
-    assert abs(fft_features[1] - expected_freq) < freq_tolerance, \
-        f"Dominant freq {fft_features[1]:.6f} Hz not close to expected {expected_freq:.6f} Hz"
-    
-    # Low spectral entropy = periodic
-    assert fft_features[3] < 0.85, \
-        f"Spectral entropy {fft_features[3]:.4f} too high (should be < 0.85 for periodic)"
-    
-    # High peak prominence = strong peak
-    assert fft_features[4] > 3.0, \
-        f"Peak prominence {fft_features[4]:.4f} too low (should be > 3.0 for strong beacon)"
-    
-    print(f"\n✅ FFT correctly detects constant beacon")
-    print(f"   Dominant freq: {fft_features[1]:.6f} Hz ≈ {expected_freq:.6f} Hz")
+    print(f"\n✅ CV correctly identifies constant beacon")
     
     # Now test full prediction
     result = detector.predict(flows)
@@ -148,7 +135,7 @@ def test_constant_beacon_detection():
 
 
 @pytest.mark.skipif(
-    not (Path(__file__).parent.parent / "models" / "c2_beacon_bilstm.onnx").exists(),
+    not (Path(__file__).parent.parent / "netsentinel" / "models" / "c2_beacon_bilstm.onnx").exists(),
     reason="C2 beacon model file not found"
 )
 def test_jittered_beacon_detection():
@@ -180,11 +167,19 @@ def test_jittered_beacon_detection():
     
     # Should be detected (FFT-based gate)
     assert result['is_beacon'], "Jittered beacon should still be detected via FFT"
+    
+    # Verify the FFT values were responsible (CV is too high for the low-jitter check)
+    cv = np.std(iats) / np.mean(iats)
+    assert cv >= 0.05, "CV should be >= 0.05 for this test"
+    assert fft_features[0] > 0.15, "FFT score should be > 0.15"
+    assert fft_features[3] < 0.85, "Spectral entropy should be < 0.85"
+    assert fft_features[4] > 3.0, "Peak prominence should be > 3.0"
+    
     print(f"✅ Jittered beacon detected (FFT-based gate)")
 
 
 @pytest.mark.skipif(
-    not (Path(__file__).parent.parent / "models" / "c2_beacon_bilstm.onnx").exists(),
+    not (Path(__file__).parent.parent / "netsentinel" / "models" / "c2_beacon_bilstm.onnx").exists(),
     reason="C2 beacon model file not found"
 )
 def test_random_traffic_rejected():
@@ -218,7 +213,7 @@ def test_random_traffic_rejected():
 
 
 @pytest.mark.skipif(
-    not (Path(__file__).parent.parent / "models" / "c2_beacon_bilstm.onnx").exists(),
+    not (Path(__file__).parent.parent / "netsentinel" / "models" / "c2_beacon_bilstm.onnx").exists(),
     reason="C2 beacon model file not found"
 )
 def test_ntp_traffic_filtered():

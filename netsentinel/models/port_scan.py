@@ -37,8 +37,8 @@ class PortScanDetector:
         feature_json = model_path.parent / "port_scan_features.json"
         with open(feature_json) as f:
             features = json.load(f)
-            # Remove 'id' if present
-            self.feature_names = [f for f in features if f != 'id']
+            # Keep 'id' — the ONNX model was trained with 40 features including id
+            self.feature_names = features
         
         self.threshold = 0.85
         

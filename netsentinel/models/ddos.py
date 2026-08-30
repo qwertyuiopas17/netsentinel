@@ -51,6 +51,18 @@ class DDoSDetector:
             dtype=np.float32
         ).reshape(1, -1)
         
+        # Degenerate-flow guard: reject all-zero vectors before inference.
+        # An all-zero feature vector is not a real flow (it means missing data).
+        # Without this guard the model can produce false-positive DDoS alerts.
+        if not np.any(feature_vec):
+            return {
+                "threat": "Benign",
+                "confidence": 0.0,
+                "is_attack": False,
+                "subtype": "Benign",
+                "model": "ddos_binary_xgboost",
+            }
+
         # Run inference
         results = self.session.run(None, {self.input_name: feature_vec})
         
