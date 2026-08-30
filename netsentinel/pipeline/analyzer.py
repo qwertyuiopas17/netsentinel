@@ -225,24 +225,55 @@ class FlowAnalyzer:
         if alert is None and self.registry.port_scan and features:
             unsw_features = build_unsw_features(event, self._conn_tracker)
             if unsw_features:
-                # Add scanned ports evidence if available
+                # HEURISTIC: Direct port scan detection based on port fan-out
+                # If source IP has hit >10 different ports, create evidence regardless of model
                 if source_ip and source_ip in self._recent_dst_ports:
+                    num_ports = len(self._recent_dst_ports[source_ip])
                     unsw_features["scanned_ports"] = list(self._recent_dst_ports[source_ip])
                     unsw_features["dst_ip"] = dest_ip or "unknown"
                     unsw_features["window_seconds"] = 8
-                    print(f"[DEBUG] Port scan check: {source_ip} -> {len(self._recent_dst_ports[source_ip])} ports")
-                
-                result = self.registry.port_scan.predict(unsw_features)
-                print(f"[DEBUG] Port scan result: {result.get('threat')} @ {result.get('confidence', 0):.4f} confidence")
-                if (result.get("threat") == "Port Scan"
-                        and result.get("confidence", 0) >= THRESHOLDS["port_scan"]):
-                    alert = self.alert_manager.create_alert(
-                        result,
-                        source_ip=source_ip,
-                        dest_ip=dest_ip,
-                        flow_meta=flow_meta,
-                    )
-                    print(f"[✓] Port scan alert created!")
+                    
+                    # If >10 ports scanned, create alert with heuristic evidence
+                    if num_ports >= 10:
+                        print(f"[🎯] Port scan heuristic: {source_ip} -> {num_ports} ports (threshold: 10)")
+                        # Create synthetic result for evidence panel
+                        result = {
+                            "threat": "Port Scan",
+                            "confidence": min(0.5 + (num_ports / 100), 0.95),  # Scale with port count
+                            "model": "port_scan_heuristic",
+                            "evidence": {
+                                "fan_out": {
+                                    "target_ip": dest_ip or "unknown",
+                                    "ports": sorted(list(self._recent_dst_ports[source_ip]))[:30],  # Max 30
+                                    "total_ports": num_ports,
+                                    "window": 8,
+                                }
+                            },
+                            "mitre": {
+                                "tactic": "Discovery",
+                                "technique": "T1046",
+                                "name": "Network Service Scanning"
+                            }
+                        }
+                        alert = self.alert_manager.create_alert(
+                            result,
+                            source_ip=source_ip,
+                            dest_ip=dest_ip,
+                            flow_meta=flow_meta,
+                        )
+                        print(f"[✓] Port scan alert created (heuristic)!")
+                    else:
+                        # Still try ML model for low port counts
+                        result = self.registry.port_scan.predict(unsw_features)
+                        if (result.get("threat") == "Port Scan"
+                                and result.get("confidence", 0) >= THRESHOLDS["port_scan"]):
+                            alert = self.alert_manager.create_alert(
+                                result,
+                                source_ip=source_ip,
+                                dest_ip=dest_ip,
+                                flow_meta=flow_meta,
+                            )
+
 
         
         return alert
