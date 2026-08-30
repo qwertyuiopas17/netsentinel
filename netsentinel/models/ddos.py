@@ -91,13 +91,27 @@ class DDoSDetector:
         # Standard ML practice for production deployment to balance TPR/FPR
         is_attack = predicted_label == 0 and ddos_confidence > 0.98
         
-        return {
+        result = {
             "threat": "DDoS" if is_attack else "Benign",
             "confidence": float(ddos_confidence) if is_attack else float(1 - ddos_confidence),
             "is_attack": is_attack,
             "subtype": self.label_map.get(str(predicted_label), "Unknown") if is_attack else "Benign",
             "model": "ddos_binary_xgboost",
         }
+        
+        # Add evidence for frontend specialty panel
+        if is_attack:
+            # Use flow rate features as evidence (entropy would need connection tracker)
+            pps = features.get("Flow Packets/s", 0)
+            bps = features.get("Flow Bytes/s", 0)
+            
+            result["evidence"] = {
+                "pps": round(float(pps), 2),
+                "bps": round(float(bps), 2),
+                "attack_type": self.label_map.get(str(predicted_label), "Unknown"),
+            }
+        
+        return result
     
     def predict_batch(self, features_list: list) -> list:
         """Run on multiple flows at once."""

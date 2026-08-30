@@ -87,6 +87,13 @@ ETT_MODEL_PATH = get_model_path("encrypted_traffic_transformer/encrypted_traffic
 ETT_SCALER_PATH = get_model_path("encrypted_traffic_transformer/ett_scaler.json")
 ETT_CLASSES_PATH = get_model_path("encrypted_traffic_transformer/ett_classes.json")
 
+PORT_SCAN_MODEL_PATH = get_model_path("port_scan/port_scan_xgboost.onnx")
+PORT_SCAN_FEATURES_PATH = get_model_path("port_scan/port_scan_features.json")
+
+EXFIL_MODEL_PATH = get_model_path("exfil/exfil_vae.onnx")
+EXFIL_SCALER_PATH = get_model_path("exfil/exfil_scaler.joblib")
+EXFIL_META_PATH = get_model_path("exfil/exfil_meta.json")
+
 # ============================================================
 # Detection Thresholds
 # ============================================================

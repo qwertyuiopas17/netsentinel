@@ -119,6 +119,14 @@ class FlowAnalyzer:
         if self.registry.exfiltration:
             dns_features = build_dns_features(domain)
             if dns_features:
+                # Add byte counts if available in the event
+                if "features" in event:
+                    fwd_bytes = event["features"].get("Fwd Packets Length Total", 0)
+                    bwd_bytes = event["features"].get("Bwd Packets Length Total", 0)
+                    if fwd_bytes or bwd_bytes:
+                        dns_features["total_fwd_bytes"] = fwd_bytes
+                        dns_features["total_bwd_bytes"] = bwd_bytes
+                
                 result = self.registry.exfiltration.predict(dns_features)
                 if (result.get("threat") == "Data Exfiltration"
                         and result.get("confidence", 0) >= THRESHOLDS["exfiltration"]):
@@ -188,12 +196,12 @@ class FlowAnalyzer:
                 pkt_rate = features.get("Flow Packets/s", 0)
                 byte_rate = features.get("Flow Bytes/s", 0)
                 if pkt_rate > 100 or byte_rate > 50000:
-                    # Add src_ip_entropy evidence (§3d)
+                    # Add src_ip_entropy evidence
                     if dest_ip and dest_ip in self._recent_src_ips:
                         src_entropy = _shannon_entropy_of_ips(
                             self._recent_src_ips[dest_ip]
                         )
-                        result["src_ip_entropy"] = round(src_entropy, 4)
+                        result["src_ip_entropy"] = round(src_entropy, 2)
 
                     alert = self.alert_manager.create_alert(
                         result,
@@ -217,16 +225,15 @@ class FlowAnalyzer:
         if alert is None and self.registry.port_scan and features:
             unsw_features = build_unsw_features(event, self._conn_tracker)
             if unsw_features:
+                # Add scanned ports evidence if available
+                if source_ip and source_ip in self._recent_dst_ports:
+                    unsw_features["scanned_ports"] = list(self._recent_dst_ports[source_ip])
+                    unsw_features["dst_ip"] = dest_ip or "unknown"
+                    unsw_features["window_seconds"] = 8
+                
                 result = self.registry.port_scan.predict(unsw_features)
                 if (result.get("threat") == "Port Scan"
                         and result.get("confidence", 0) >= THRESHOLDS["port_scan"]):
-                    # Add fan_out evidence (§3d)
-                    if source_ip and source_ip in self._recent_dst_ports:
-                        result["fan_out"] = {
-                            "target_ip": dest_ip or "unknown",
-                            "ports": sorted(list(self._recent_dst_ports[source_ip]))[:50],
-                            "window": len(self._recent_dst_ports[source_ip]),
-                        }
                     alert = self.alert_manager.create_alert(
                         result,
                         source_ip=source_ip,

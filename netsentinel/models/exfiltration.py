@@ -6,9 +6,10 @@ MITRE ATT&CK: T1041 (Exfil Over C2), T1048 (Exfil Alt Protocol), T1071.004 (DNS)
 import numpy as np
 import onnxruntime as ort
 import joblib
-from pathlib import Path
 import json
 from typing import Dict, Any
+
+from netsentinel.config import EXFIL_MODEL_PATH, EXFIL_SCALER_PATH, EXFIL_META_PATH
 
 
 class ExfiltrationDetector:
@@ -22,39 +23,19 @@ class ExfiltrationDetector:
     - High volume of DNS queries
     """
     
-    def __init__(self, model_path: str = None, scaler_path: str = None):
-        """
-        Initialize exfiltration detector with VAE model and scaler.
-        
-        Args:
-            model_path: Path to ONNX VAE model
-            scaler_path: Path to scaler joblib file
-        """
-        if model_path is None:
-            model_path = Path(__file__).parent / "exfil_vae.onnx"
-        if scaler_path is None:
-            scaler_path = Path(__file__).parent / "exfil_scaler.joblib"
-        
-        model_path = Path(model_path)
-        scaler_path = Path(scaler_path)
-        
-        if not model_path.exists():
-            raise FileNotFoundError(f"Exfiltration model not found: {model_path}")
-        if not scaler_path.exists():
-            raise FileNotFoundError(f"Scaler not found: {scaler_path}")
-        
+    def __init__(self):
+        """Initialize exfiltration detector with VAE model and scaler."""
         # Load metadata (contains feature names)
-        meta_path = model_path.parent / "exfil_meta.json"
-        with open(meta_path) as f:
+        with open(EXFIL_META_PATH) as f:
             self.metadata = json.load(f)
         
         self.feature_names = self.metadata['features']
         
         # Load ONNX model
-        self.session = ort.InferenceSession(str(model_path))
+        self.session = ort.InferenceSession(EXFIL_MODEL_PATH)
         
         # Load scaler (CRITICAL: must match training scikit-learn version)
-        self.scaler = joblib.load(scaler_path)
+        self.scaler = joblib.load(EXFIL_SCALER_PATH)
         
         # Threshold for reconstruction error (from metadata)
         # Tuned to F1=0.89 on validation set
@@ -113,18 +94,27 @@ class ExfiltrationDetector:
                 conf = max(conf, 0.75)
             
             result = {
-                "threat": "Data Exfiltration" if is_exfil else "benign",
+                "threat": "Data Exfiltration" if is_exfil else "Benign",
                 "confidence": conf,
                 "model": "exfil_vae",
             }
             
             if is_exfil:
-                result["evidence"] = {
+                evidence = {
                     "reconstruction_error": float(mse),
                     "dns_entropy": float(dns_entropy),
                     "subdomain_length": int(subdomain_len),
                     "anomaly_type": "dns_tunneling"
                 }
+                
+                # Add byte ratio if available (from flow stats)
+                if "total_fwd_bytes" in features and "total_bwd_bytes" in features:
+                    evidence["byte_ratio"] = {
+                        "outbound": int(features["total_fwd_bytes"]),
+                        "inbound": int(features["total_bwd_bytes"]),
+                    }
+                
+                result["evidence"] = evidence
                 result["mitre"] = {
                     "tactic": "Exfiltration",
                     "technique": "T1048",
@@ -136,7 +126,7 @@ class ExfiltrationDetector:
         except Exception as e:
             print(f"[!] Exfiltration prediction error: {e}")
             return {
-                "threat": "benign",
+                "threat": "Benign",
                 "confidence": 0.0,
                 "model": "exfil_vae",
                 "error": str(e)

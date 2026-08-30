@@ -153,6 +153,7 @@ class FlowExtractor:
         src_ip = ip.src
         dst_ip = ip.dst
         ts = float(packet.time)
+        # Get payload size (transport layer payload, not including IP header)
         payload_size = len(ip.payload) if hasattr(ip, 'payload') else (ip.len - (ip.ihl * 4))
 
         # Build 5-tuple keys (forward and reverse)

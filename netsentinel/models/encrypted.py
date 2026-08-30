@@ -77,13 +77,28 @@ class EncryptedTrafficDetector:
         # Determine if it's VPN traffic
         is_vpn = class_name.startswith("VPN-")
         
-        return {
+        result = {
             "threat": "VPN Traffic" if is_vpn else "Benign",
             "confidence": confidence,
             "is_vpn": is_vpn,
             "app_class": class_name,
             "model": "encrypted_traffic_transformer",
         }
+        
+        # Add JA4 fingerprint if available (from TLS extraction)
+        if is_vpn or confidence > 0.7:
+            evidence = {}
+            
+            if "ja4" in features:
+                evidence["ja4"] = features["ja4"]
+                
+            if "ja4_rarity" in features:
+                evidence["ja4_rarity"] = round(float(features["ja4_rarity"]), 2)
+            
+            if evidence:
+                result["evidence"] = evidence
+        
+        return result
     
     def predict_batch(self, features_list: list) -> list:
         """Classify multiple flows."""

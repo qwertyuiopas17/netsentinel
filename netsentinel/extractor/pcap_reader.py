@@ -134,10 +134,17 @@ class PacketProcessor:
         last_flush_time = 0.0
         flush_interval = 30.0  # Flush expired flows every 30s of PCAP time
 
+        packet_count = 0
         for packet in reader:
+            packet_count += 1
+            
             # Process packet through all extractors
             for event in self.process_packet(packet):
                 yield event
+            
+            # Periodically yield control so we don't starve the asyncio event loop
+            if packet_count % 1000 == 0:
+                yield None
 
             # Periodically flush expired flows (based on PCAP timestamps)
             pkt_time = float(packet.time)

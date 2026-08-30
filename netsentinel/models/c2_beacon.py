@@ -212,12 +212,25 @@ class C2BeaconDetector:
         else:
             beacon_interval_fft = beacon_interval
         
-        return {
+        result = {
             "threat": "C2 Beacon" if is_beacon else "Benign",
             "confidence": prob,
             "is_beacon": is_beacon,
             "periodicity_seconds": float(beacon_interval_fft),
             "model": "c2_beacon_bilstm",
-            "cv": cv,  # Expose for debugging
-            "benign_periodic_filtered": is_benign_periodic,  # For monitoring FP reduction
         }
+        
+        # Add IAT evidence for beacon clock visualization
+        if is_beacon:
+            # Take first 24 IATs for the frontend chart
+            iat_values = [float(iat) for iat in iats[:24] if iat > 0]
+            
+            result["evidence"] = {
+                "iat": iat_values,
+                "beacon_interval": round(float(beacon_interval_fft), 2),
+                "coefficient_of_variation": round(cv, 3),
+                "fft_score": round(fft_score, 3),
+            }
+        
+        return result
+

@@ -5,9 +5,10 @@ MITRE ATT&CK: T1046 - Network Service Scanning (Discovery)
 """
 import numpy as np
 import onnxruntime as ort
-from pathlib import Path
 import json
 from typing import Dict, Any
+
+from netsentinel.config import PORT_SCAN_MODEL_PATH, PORT_SCAN_FEATURES_PATH
 
 
 class PortScanDetector:
@@ -20,22 +21,13 @@ class PortScanDetector:
     - Sequential port targeting
     """
     
-    def __init__(self, model_path: str = None):
+    def __init__(self):
         """Initialize port scan detector with ONNX model."""
-        if model_path is None:
-            model_path = Path(__file__).parent / "port_scan_xgboost.onnx"
-        
-        model_path = Path(model_path)
-        
-        if not model_path.exists():
-            raise FileNotFoundError(f"Port Scan model not found: {model_path}")
-        
         # Load ONNX model
-        self.session = ort.InferenceSession(str(model_path))
+        self.session = ort.InferenceSession(PORT_SCAN_MODEL_PATH)
         
         # Load feature names
-        feature_json = model_path.parent / "port_scan_features.json"
-        with open(feature_json) as f:
+        with open(PORT_SCAN_FEATURES_PATH) as f:
             features = json.load(f)
             # Keep 'id' — the ONNX model was trained with 40 features including id
             self.feature_names = features
@@ -78,17 +70,27 @@ class PortScanDetector:
                 is_threat = is_threat or (rate > 100 and conf > 0.7)
             
             result = {
-                "threat": "Port Scan" if is_threat else "benign",
+                "threat": "Port Scan" if is_threat else "Benign",
                 "confidence": conf,
                 "model": "port_scan_xgboost",
             }
             
             if is_threat:
-                result["evidence"] = {
+                evidence = {
                     "connection_rate": float(rate),
                     "packets_per_flow": int(pkts),
                     "scan_indicator": "high_rate_low_packets"
                 }
+                
+                # Add fan_out if available (passed from analyzer/connection tracker)
+                if "scanned_ports" in features:
+                    evidence["fan_out"] = {
+                        "target_ip": features.get("dst_ip", "unknown"),
+                        "ports": sorted(features["scanned_ports"]),
+                        "window": int(features.get("window_seconds", 8)),
+                    }
+                
+                result["evidence"] = evidence
                 result["mitre"] = {
                     "tactic": "Discovery",
                     "technique": "T1046",
@@ -100,7 +102,7 @@ class PortScanDetector:
         except Exception as e:
             print(f"[!] Port Scan prediction error: {e}")
             return {
-                "threat": "benign",
+                "threat": "Benign",
                 "confidence": 0.0,
                 "model": "port_scan_xgboost",
                 "error": str(e)

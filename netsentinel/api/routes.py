@@ -123,6 +123,30 @@ def create_routes(analyzer, alert_manager, ws_hub, simulator_control, packet_pro
             "size_bytes": os.path.getsize(save_path),
         }
 
+    from pydantic import BaseModel
+    class ProcessLocalPCAPRequest(BaseModel):
+        filepath: str
+
+    @router.post("/pcap/process")
+    async def process_local_pcap(request: ProcessLocalPCAPRequest, background_tasks: BackgroundTasks):
+        """Process a local PCAP file directly by filepath.
+        Bypasses HTTP multipart upload limits, ideal for massive files (e.g. 8GB+).
+        """
+        if _packet_processor is None:
+            return {"error": "Extraction layer not initialized"}
+
+        if not os.path.exists(request.filepath):
+            return {"error": f"File not found: {request.filepath}"}
+
+        # Process in background
+        background_tasks.add_task(_process_pcap_background, request.filepath, analyzer, ws_hub)
+
+        return {
+            "status": "Local PCAP found, processing started",
+            "filename": os.path.basename(request.filepath),
+            "size_bytes": os.path.getsize(request.filepath),
+        }
+
     @router.post("/capture/start")
     async def start_capture(interface: str = CAPTURE_INTERFACE):
         """Start live packet capture on the specified interface."""
@@ -174,13 +198,18 @@ async def _process_pcap_background(pcap_path: str, analyzer, ws_hub):
     event_count = 0
 
     for event in processor.process_pcap(pcap_path):
+        if event is None:
+            # Yield control so WebSockets don't timeout
+            await asyncio.sleep(0)
+            continue
+            
         event_count += 1
         alert = analyzer.analyze_flow(event)
         if alert:
             alert_count += 1
             await ws_hub.broadcast_alert(alert)
 
-        # Yield control periodically to not block the event loop
+        # Still yield occasionally for events
         if event_count % 100 == 0:
             await asyncio.sleep(0)
 

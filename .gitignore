@@ -1,13 +1,12 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
+env/
+venv/
+ENV/
 build/
 develop-eggs/
 dist/
@@ -24,13 +23,13 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
-venv/
-env/
-ENV/
-.venv
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -41,28 +40,59 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# PCAP files (can be large)
+# Project specific
+uploads/*.pcap
+pcaps/*.pcap
+!pcaps/.gitkeep
 *.pcap
 *.pcapng
 
-# Large CSV files
-*.csv
+# Keep only the provided test PCAPs
+!Friday-WorkingHours.pcap
+!test_portscan.pcap
 
-# Kiro and cache folders
-.kiro/
+# Cache
 .cache/
+*.csv
+!friday.csv
 
-# Upload directories
-uploads/
-pcaps/
+# Temporary analysis files
+ks_results.csv
+ks_summary.txt
+ours.csv
 
-# Node modules
-node_modules/
+# HuggingFace upload staging (local only)
+hf_upload/
+
+# Graphify output (generated)
+graphify-out/
+
+# Temporary test/debug scripts
+check_evidence.py
+test_port_scan_evidence.py
+fix_sklearn_version.py
+prepare_hf_upload.py
+upload_to_hf.py
+retrain_exfil_scaler.py
+generate_portscan_pcap.py
+quickstart.py
+validate_fixes.py
+
+# Redundant documentation (consolidated)
+ACTION_ITEMS.md
+BACKEND_EVIDENCE_PATCH.md
+BACKEND_REMEDIATION_TODO.md
+CRITICAL_FIXES_SUMMARY.md
+FINAL_STATUS.md
+FIXES_APPLIED.md
+README_FIXES.md
+NEXT_STEPS.md
+START_HERE.md
+MASTER_RUN_GUIDE.md
+
+# Frontend
+frontend/node_modules/
+frontend/.figma/
+frontend/dist/
+frontend/.vite/
+frontend/pnpm-lock.yaml

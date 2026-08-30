@@ -73,24 +73,31 @@ function initialState(): FeedState {
  *   - indicators: string array
  *   - sourceCoords/destCoords: [lat, lng] tuples
  */
-
-// Map backend threat_class strings → frontend ThreatType enum values
-// Backend emits raw strings; we normalize here so backend stays canonical.
-const THREAT_MAP: Record<string, string> = {
-  "Data Exfiltration": "Exfiltration",
+// ── Backend → frontend vocabulary maps ────────────────────────────────
+// The backend (alert_manager.py + model wrappers) emits its own strings:
+// snake_case model ids, and threat classes like "VPN Traffic" /
+// "Data Exfiltration". The frontend components filter on the ThreatType
+// and ModelName unions, so we normalise here — otherwise the encrypted /
+// exfil class panels, the MITRE heatmap, and the model cards stay dark
+// even while alerts arrive.
+const THREAT_CLASS_MAP: Record<string, Alert["threatType"]> = {
+  DDoS: "DDoS",
+  "C2 Beacon": "C2 Beacon",
+  DGA: "DGA",
+  "DNS Tunnel": "DGA",
   "VPN Traffic": "Encrypted",
   "Encrypted Malware": "Encrypted",
-  "DNS Tunnel": "DGA",
+  "Port Scan": "Port Scan",
+  "Data Exfiltration": "Exfiltration",
 };
 
-// Map backend model names → frontend display names
-const MODEL_NAME_MAP: Record<string, string> = {
-  "ddos_binary_xgboost": "DDoS XGBoost",
-  "dga_cnn_bilstm": "DGA CNN-BiLSTM",
-  "c2_beacon_bilstm_fft": "C2 BiLSTM+FFT",
-  "encrypted_traffic_transformer": "ETT Transformer",
-  "port_scan_xgboost": "Port Scan XGBoost",
-  "exfil_vae": "Exfil VAE",
+const MODEL_NAME_MAP: Record<string, Alert["model"]> = {
+  ddos_binary_xgboost: "DDoS XGBoost",
+  dga_cnn_bilstm_v2: "DGA CNN-BiLSTM",
+  c2_beacon_bilstm: "C2 BiLSTM+FFT",
+  encrypted_traffic_transformer: "ETT Transformer",
+  port_scan_xgboost: "Port Scan XGBoost",
+  exfil_vae: "Exfil VAE",
 };
 
 function parseBackendAlert(raw: any): Alert {
@@ -103,15 +110,7 @@ function parseBackendAlert(raw: any): Alert {
     if (raw.evidence.beacon_interval) indicators.push(`Beacon interval: ${raw.evidence.beacon_interval}s`);
     if (raw.evidence.entropy) indicators.push(`Entropy: ${raw.evidence.entropy.toFixed(2)}`);
     if (raw.evidence.domain) indicators.push(`Domain: ${raw.evidence.domain}`);
-    // Port Scan evidence
-    if (raw.evidence.connection_rate) indicators.push(`Connection rate: ${raw.evidence.connection_rate}/s`);
-    if (raw.evidence.fan_out?.ports) indicators.push(`Ports scanned: ${raw.evidence.fan_out.ports.length}`);
-    // Exfiltration evidence
-    if (raw.evidence.reconstruction_error) indicators.push(`Recon error: ${raw.evidence.reconstruction_error.toFixed(4)}`);
-    if (raw.evidence.dns_entropy) indicators.push(`DNS entropy: ${raw.evidence.dns_entropy.toFixed(2)}`);
-    if (raw.evidence.subdomain_length) indicators.push(`Subdomain len: ${raw.evidence.subdomain_length}`);
-    // DDoS source IP entropy
-    if (raw.evidence.src_ip_entropy) indicators.push(`Src IP entropy: ${raw.evidence.src_ip_entropy.toFixed(2)} bits`);
+    // Add more evidence field mappings as backend evolves
   }
 
   // Fallback indicators if evidence is empty
@@ -119,23 +118,55 @@ function parseBackendAlert(raw: any): Alert {
     indicators.push(`Detected by ${raw.model_name || "ML model"}`);
   }
 
-  // Normalize threat_class using THREAT_MAP (§3b)
-  const threatType = (THREAT_MAP[raw.threat_class] ?? raw.threat_class) as Alert["threatType"];
+  // Normalise the 5-tuple flow id (backend uses snake_case keys).
+  const flow = raw.flow
+    ? {
+        srcIp: raw.flow.src_ip,
+        srcPort: raw.flow.src_port ?? 0,
+        dstIp: raw.flow.dst_ip,
+        dstPort: raw.flow.dst_port ?? 0,
+        protocol: (raw.flow.protocol ?? "TCP") as "TCP" | "UDP" | "ICMP",
+      }
+    : undefined;
+
+  // DGA per-family probabilities → classProbs (all_probs may be an object
+  // {label: p} or already a list of {label, p}).
+  let classProbs: Alert["classProbs"];
+  const ap = raw.evidence?.all_probs;
+  if (Array.isArray(ap)) classProbs = ap;
+  else if (ap && typeof ap === "object") classProbs = Object.entries(ap).map(([label, p]) => ({ label, p: Number(p) }));
 
   return {
     id: raw.id,
     timestamp: new Date(raw.timestamp).getTime(), // ISO → epoch ms
-    threatType,
+    threatType: THREAT_CLASS_MAP[raw.threat_class] ?? (raw.threat_class as Alert["threatType"]),
     severity: raw.severity.toLowerCase() as Severity,
     sourceIP: raw.source_ip,
     destIP: raw.dest_ip,
     domain: raw.evidence?.domain,
     confidence: Math.round(raw.confidence * 1000) / 10, // 0.9937 → 99.4
-    mitreTechnique: raw.mitre?.technique,
+    flow,
+    mitreTechnique: raw.mitre?.name ?? raw.mitre?.technique, // heatmap matches on technique name
     mitreTactic: raw.mitre?.tactic,
-    model: MODEL_NAME_MAP[raw.model_name] || raw.model_name as Alert["model"],
+    model: MODEL_NAME_MAP[raw.model_name] ?? (raw.model_name as Alert["model"]),
     indicators,
-    beaconInterval: raw.evidence?.beacon_interval,
+    beaconInterval: raw.evidence?.beacon_interval ?? raw.evidence?.periodicity_seconds,
+    classProbs,
+    // Per-class evidence signals (backend evidence dict → typed fields).
+    srcIpEntropy: raw.evidence?.src_ip_entropy,
+    fanOut: raw.evidence?.fan_out
+      ? {
+          targetIp: raw.evidence.fan_out.target_ip,
+          ports: raw.evidence.fan_out.ports ?? [],
+          window: raw.evidence.fan_out.window ?? 0,
+        }
+      : undefined,
+    byteRatio: raw.evidence?.byte_ratio
+      ? { outbound: raw.evidence.byte_ratio.outbound, inbound: raw.evidence.byte_ratio.inbound }
+      : undefined,
+    ja4: raw.evidence?.ja4,
+    ja4Rarity: raw.evidence?.ja4_rarity,
+    iat: raw.evidence?.iat,
     // Transform geo object → coordinate tuples for 3D graph
     sourceCoords: raw.geo?.src_lat && raw.geo?.src_lon 
       ? [raw.geo.src_lat, raw.geo.src_lon] 
@@ -180,6 +211,22 @@ export function useThreatFeed(): FeedState {
   const firedRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
+    // Fetch historical alerts on mount
+    fetch("http://localhost:8000/api/alerts")
+      .then(res => res.json())
+      .then(data => {
+        if (data.alerts && Array.isArray(data.alerts)) {
+          // Load first 50 historical alerts
+          let newState = initialState();
+          for (const rawAlert of data.alerts.slice(0, 50)) {
+            const alert = parseBackendAlert(rawAlert);
+            newState = ingest(newState, alert, "live");
+          }
+          setState(newState);
+        }
+      })
+      .catch(err => console.warn("Failed to load historical alerts:", err));
+
     let ws: WebSocket | null = null;
     let mockIv: ReturnType<typeof setInterval> | null = null;
     let sampleIv: ReturnType<typeof setInterval> | null = null;
@@ -243,15 +290,13 @@ export function useThreatFeed(): FeedState {
       try {
         ws = new WebSocket(WS_URL);
         fallbackTimer = setTimeout(() => {
-          if (!live) {
-            console.log("[WebSocket] Fallback to mock after 4s timeout");
-            startMock();
-          }
+          if (!live) startMock();
         }, 4000);
         ws.onopen = () => {
-          console.log("[WebSocket] Connected to backend:", WS_URL);
           live = true;
           if (fallbackTimer) clearTimeout(fallbackTimer);
+          if (mockIv) clearInterval(mockIv);
+          if (sampleIv) clearInterval(sampleIv);
           setState((prev) => ({ ...prev, source: "live", status: "monitoring" }));
           startSampling(true);
         };
@@ -267,16 +312,13 @@ export function useThreatFeed(): FeedState {
             /* ignore malformed frames */
           }
         };
-        ws.onerror = (error) => {
-          console.error("[WebSocket] Error:", error);
+        ws.onerror = () => {
           if (!live) startMock();
         };
-        ws.onclose = (event) => {
-          console.log("[WebSocket] Closed:", event.code, event.reason);
+        ws.onclose = () => {
           if (!live) startMock();
         };
-      } catch (error) {
-        console.error("[WebSocket] Failed to create connection:", error);
+      } catch {
         startMock();
       }
     } else {
