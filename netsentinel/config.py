@@ -81,7 +81,7 @@ C2_SEQ_SCALE_PATH = get_model_path("c2_beacon_detector/scaler_seq_scale.npy")
 C2_FFT_MEAN_PATH = get_model_path("c2_beacon_detector/scaler_fft_mean.npy")
 C2_FFT_SCALE_PATH = get_model_path("c2_beacon_detector/scaler_fft_scale.npy")
 
-DGA_MODEL_PATH = get_model_path("dga_dna_tunneling_detection/dga_cnn_bilstm_v2.onnx")
+DGA_MODEL_PATH = get_model_path("dga_dna_tunneling_detection/dga_cnn_bilstm_v1.onnx")
 
 ETT_MODEL_PATH = get_model_path("encrypted_traffic_transformer/encrypted_traffic_transformer.onnx")
 ETT_SCALER_PATH = get_model_path("encrypted_traffic_transformer/ett_scaler.json")
@@ -101,9 +101,9 @@ EXFIL_META_PATH = get_model_path("exfil/exfil_meta.json")
 THRESHOLDS = {
     "ddos": 0.95,
     "c2_beacon": 0.80,
-    "dga": 0.80,
+    "dga": 0.70,
     "encrypted_malware": 0.70,
-    "port_scan": 0.50,  # Lowered from 0.85 for simulator testing
+    "port_scan": 0.85,  # Conservative threshold for production
     "exfiltration": 0.70,
 }
 

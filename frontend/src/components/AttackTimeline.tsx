@@ -4,7 +4,7 @@ import type { Alert, ThreatType } from "../types/alert";
 import { SEVERITY_COLOR } from "../types/alert";
 
 const WINDOW_MS = 60_000;
-const LANES: ThreatType[] = ["DDoS", "C2 Beacon", "DGA", "Encrypted", "Port Scan"];
+const LANES: ThreatType[] = ["DDoS", "C2 Beacon", "DGA", "Exfiltration", "Encrypted", "Port Scan"];
 
 // Rolling 60s swimlane — one lane per threat class, a marker per detection.
 // This is the "story" view: it shows the attack sequence unfolding in time,
@@ -25,7 +25,7 @@ export default function AttackTimeline({ alerts }: { alerts: Alert[] }) {
         <div className="flex items-center gap-2">
           <Clock size={14} className="text-[var(--text-muted)]" />
           <h2 className="text-[13px] font-semibold">Attack Timeline</h2>
-          <span className="label-mono text-[9px] text-[var(--text-dim)]">rolling 60s</span>
+          <span className="label-mono text-[9px] text-[var(--text-dim)]">60s window</span>
         </div>
         <span className="label-mono text-[9px] text-[var(--text-dim)]">{events.length} events</span>
       </div>

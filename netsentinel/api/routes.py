@@ -199,8 +199,7 @@ async def _process_pcap_background(pcap_path: str, analyzer, ws_hub):
 
     for event in processor.process_pcap(pcap_path):
         if event is None:
-            # Yield control so WebSockets don't timeout
-            await asyncio.sleep(0)
+            await asyncio.sleep(0.001)
             continue
             
         event_count += 1
@@ -209,9 +208,9 @@ async def _process_pcap_background(pcap_path: str, analyzer, ws_hub):
             alert_count += 1
             await ws_hub.broadcast_alert(alert)
 
-        # Still yield occasionally for events
-        if event_count % 100 == 0:
-            await asyncio.sleep(0)
+        # Yield control frequently to keep WebSocket + HTTP responsive
+        if event_count % 10 == 0:
+            await asyncio.sleep(0.001)
 
     # Send completion stats
     await ws_hub.broadcast_stats({

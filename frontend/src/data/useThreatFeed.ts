@@ -22,7 +22,7 @@ import {
  * back to mock automatically so the dashboard is never blank.
  * ──────────────────────────────────────────────────────────────────────
  */
-const WS_URL = "ws://localhost:8000/ws";  // Changed from "" to enable live mode
+const WS_URL = "ws://localhost:8000/ws";  // Live mode enabled
 
 const LOOP_MS = 60_000;
 const TICK_MS = 900;

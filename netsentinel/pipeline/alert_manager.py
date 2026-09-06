@@ -51,6 +51,8 @@ class AlertManager:
         
         # Assign severity based on threat type + confidence
         base_severity = SEVERITY_MAP.get(threat, "MEDIUM")
+        
+        # Adjust severity based on confidence thresholds
         if confidence > 0.95:
             severity = "CRITICAL"
         elif confidence > 0.85:
@@ -59,6 +61,29 @@ class AlertManager:
             severity = "MEDIUM" if base_severity in ("CRITICAL", "HIGH") else "LOW"
         else:
             severity = "LOW"
+        
+        # Additional context-based severity adjustment
+        # If model has medium confidence + no strong supporting evidence → downgrade to INFO
+        if confidence < 0.90 and threat in ("DGA", "Data Exfiltration"):
+            # Check if strong indicators are present
+            has_strong_indicators = False
+            
+            # For DGA: very high entropy (>4.0) is strong indicator
+            if threat == "DGA":
+                dns_entropy_indicator = model_result.get("entropy", 0)  # From result
+                has_strong_indicators = dns_entropy_indicator > 4.0
+            
+            # For Exfiltration: high entropy + long subdomain + byte asymmetry
+            if threat == "Data Exfiltration":
+                dns_entropy = model_result.get("dns_entropy", 0)
+                subdomain_len = model_result.get("subdomain_length", 0)
+                has_byte_ratio = "byte_ratio" in model_result
+                
+                has_strong_indicators = (dns_entropy > 4.5 and subdomain_len > 30 and has_byte_ratio)
+            
+            # Downgrade if no strong indicators
+            if not has_strong_indicators:
+                severity = "INFO"  # Uncertain detection, needs analyst review
         
         # Get MITRE mapping
         mitre = MITRE_MAP.get(threat, {"tactic": "Unknown", "technique": "T0000", "name": "Unknown"})

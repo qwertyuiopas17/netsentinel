@@ -101,6 +101,9 @@ def generate_normal_dns() -> dict:
         "type": "dns",
         "domain": random.choice(legit_domains),
         "source_ip": f"192.168.1.{random.randint(2, 254)}",
+        # Add normal byte counts (small queries, small responses)
+        "total_fwd_bytes": random.randint(40, 120),    # Normal DNS query size
+        "total_bwd_bytes": random.randint(100, 500),   # Normal DNS response size
     }
 
 

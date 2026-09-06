@@ -1,9 +1,12 @@
 """Packet Processor — Orchestrator for the extraction pipeline.
 
 Routes each raw packet through all three extractors:
-  1. FlowExtractor  → DDoS + ETT features (type="flow")
+  1. FlowExtractor  → ETT features (type="flow", extractor="custom")
   2. DNSExtractor   → domain strings (type="dns")
   3. SessionBuilder → flow time-series (type="session")
+
+PCAP file mode also runs CICFlowMeter (batch) for zero-drift
+DDoS + Port Scan features (type="flow", extractor="cicflowmeter").
 
 Supports two modes:
   - PCAP file replay: process_pcap("capture.pcap")
@@ -30,6 +33,11 @@ logger = logging.getLogger(__name__)
 class PacketProcessor:
     """Orchestrates packet → event extraction across all extractors.
 
+    Hybrid architecture:
+      - PCAP mode: CICFlowMeter (batch, zero-drift) for DDoS/PortScan
+                   + custom extractor (streaming) for ETT/DGA/C2/Exfil
+      - Live mode: custom extractor only (CICFlowMeter can't stream)
+
     Usage (PCAP replay):
         processor = PacketProcessor()
         for event in processor.process_pcap("capture.pcap"):
@@ -47,6 +55,7 @@ class PacketProcessor:
         idle_timeout: float = 120.0,
         active_timeout: float = 300.0,
         session_min_flows: int = 100,
+        use_cicflowmeter: bool = True,
     ):
         self.flow_extractor = FlowExtractor(
             idle_timeout=idle_timeout,
@@ -54,14 +63,29 @@ class PacketProcessor:
         )
         self.dns_extractor = DNSExtractor()
         self.session_builder = SessionBuilder(min_flows=session_min_flows)
+        self.use_cicflowmeter = use_cicflowmeter
+
+        # Lazy-load CICFlowMeter wrapper (only when needed)
+        self._cic_extractor = None
 
         self._packet_count = 0
         self._event_count = 0
         self._live_sniffer_thread: Optional[threading.Thread] = None
         self._live_running = False
 
+    def _get_cic_extractor(self):
+        """Lazy-load the CICFlowMeter wrapper."""
+        if self._cic_extractor is None:
+            try:
+                from netsentinel.extractor.cicflowmeter_wrapper import CICFlowMeterExtractor
+                self._cic_extractor = CICFlowMeterExtractor()
+            except Exception as e:
+                logger.warning(f"CICFlowMeter not available, falling back to custom: {e}")
+                self.use_cicflowmeter = False
+        return self._cic_extractor
+
     # ------------------------------------------------------------------
-    # Core: process a single packet
+    # Core: process a single packet (custom extractor only)
     # ------------------------------------------------------------------
 
     def process_packet(self, packet) -> list[dict]:
@@ -82,6 +106,8 @@ class PacketProcessor:
         # 2. Flow extraction (may complete a flow → event)
         flow_event = self.flow_extractor.process_packet(packet)
         if flow_event:
+            # Tag with custom extractor origin
+            flow_event["extractor"] = "custom"
             events.append(flow_event)
 
             # 3. Feed completed flow into session builder (for C2 detection)
@@ -93,14 +119,17 @@ class PacketProcessor:
         return events
 
     # ------------------------------------------------------------------
-    # PCAP file replay (synchronous generator)
+    # PCAP file replay — HYBRID mode (CICFlowMeter + custom)
     # ------------------------------------------------------------------
 
     def process_pcap(self, pcap_path: str) -> Generator[dict, None, None]:
-        """Replay a PCAP file, yielding events as they are extracted.
+        """Replay a PCAP file with hybrid extraction.
 
-        Uses Scapy's PcapReader for memory-efficient streaming.
-        At the end, flushes all remaining active flows.
+        Phase 1: Run CICFlowMeter (batch) → yields DDoS/PortScan flow events
+        Phase 2: Stream custom extractor → yields ETT/DNS/C2/Exfil events
+
+        Both phases yield events tagged with their extractor source so the
+        analyzer can route them to the correct models.
 
         Args:
             pcap_path: Path to the PCAP/PCAPNG file.
@@ -112,46 +141,56 @@ class PacketProcessor:
             logger.error(f"PCAP file not found: {pcap_path}")
             return
 
+        logger.info(f"Processing PCAP: {pcap_path}")
+        start_time = time.time()
+
+        # ── Phase 1: CICFlowMeter batch extraction (DDoS + Port Scan) ──
+        if self.use_cicflowmeter:
+            cic = self._get_cic_extractor()
+            if cic is not None:
+                logger.info("Phase 1: CICFlowMeter batch extraction (DDoS/PortScan)...")
+                cic_events = cic.extract_from_pcap(pcap_path)
+                for event in cic_events:
+                    self._event_count += 1
+                    yield event
+                logger.info(f"Phase 1 complete: {len(cic_events)} CIC flows extracted")
+
+        # ── Phase 2: Custom streaming extraction (ETT, DNS, C2, Exfil) ──
+        logger.info("Phase 2: Custom streaming extraction (ETT/DNS/C2/Exfil)...")
+
         try:
             from scapy.utils import PcapReader
         except ImportError:
             logger.error("Scapy not installed — cannot read PCAPs")
             return
 
-        logger.info(f"Processing PCAP: {pcap_path}")
-        start_time = time.time()
-
         try:
-            # Use streaming PcapReader — memory efficient, works for any file size.
-            # (rdpcap loads the entire file into RAM which crashes on large PCAPs)
-            from scapy.utils import PcapReader
             reader = PcapReader(pcap_path)
-            logger.info(f"Streaming PCAP: {pcap_path}")
         except Exception as e:
             logger.error(f"Failed to open PCAP: {e}")
             return
 
         last_flush_time = 0.0
-        flush_interval = 30.0  # Flush expired flows every 30s of PCAP time
+        flush_interval = 30.0
 
         packet_count = 0
         for packet in reader:
             packet_count += 1
             
-            # Process packet through all extractors
+            # Process packet through custom extractors
             for event in self.process_packet(packet):
                 yield event
             
-            # Periodically yield control so we don't starve the asyncio event loop
+            # Periodically yield control
             if packet_count % 1000 == 0:
                 yield None
 
-            # Periodically flush expired flows (based on PCAP timestamps)
+            # Periodically flush expired flows
             pkt_time = float(packet.time)
             if pkt_time - last_flush_time > flush_interval:
                 for event in self.flow_extractor.flush_expired(pkt_time):
+                    event["extractor"] = "custom"
                     yield event
-                    # Also feed flushed flows to session builder
                     session = self.session_builder.add_flow(event)
                     if session:
                         yield session
@@ -159,6 +198,7 @@ class PacketProcessor:
 
         # Flush all remaining flows at end of PCAP
         for event in self.flow_extractor.flush_all():
+            event["extractor"] = "custom"
             yield event
             session = self.session_builder.add_flow(event)
             if session:

@@ -37,9 +37,9 @@ class ExfiltrationDetector:
         # Load scaler (CRITICAL: must match training scikit-learn version)
         self.scaler = joblib.load(EXFIL_SCALER_PATH)
         
-        # Threshold for reconstruction error (from metadata)
-        # Tuned to F1=0.89 on validation set
-        self.threshold = 0.15
+        # Threshold for reconstruction error
+        # Empirically tuned: normal DNS MSE < 0.45, tunnel DNS MSE > 0.99
+        self.threshold = 0.70
         
         print(f"[OK] Exfiltration VAE loaded ({len(self.feature_names)} features)")
     

@@ -99,3 +99,12 @@ frontend/.figma/
 frontend/dist/
 frontend/.vite/
 frontend/pnpm-lock.yaml
+
+# Ignored scripts and large files
+*.ps1
+*.bat
+*.pcap
+scratch/
+*_REPORT.md
+*_SUMMARY.md
+
